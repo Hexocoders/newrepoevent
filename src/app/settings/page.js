@@ -12,7 +12,6 @@ function SettingsContent() {
   const router = useRouter();
   const { user, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
-  const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   

@@ -210,7 +210,7 @@ export default function Home() {
           <div className="flex flex-col md:flex-row justify-between items-start mb-10">
             <div>
               <h2 className="text-3xl font-bold mb-2">Trending This Week</h2>
-              <p className="text-gray-600">Don't miss out on the hottest events</p>
+              <p className="text-gray-600">Don&apos;t miss out on the hottest events</p>
             </div>
             <Link href="/explore" className="mt-4 md:mt-0 px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-lg text-sm font-medium hover:from-pink-600 hover:to-purple-700 transition-colors flex items-center">
               Explore All
