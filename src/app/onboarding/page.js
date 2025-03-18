@@ -705,8 +705,8 @@ function OnboardingContent() {
 
   // Effect to update userData fields when they change
   useEffect(() => {
-    // This effect ensures userData.firstName, lastName, and phoneNumber are included as dependencies
-  }, [userData.firstName, userData.lastName, userData.phoneNumber]);
+    // This effect ensures userData fields are included as dependencies
+  }, [userData.firstName, userData.lastName, userData.phoneNumber, userData.bio, userData.preferences]);
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
