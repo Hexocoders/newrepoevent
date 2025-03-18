@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import supabase from '../lib/supabase';
@@ -10,7 +10,6 @@ function CreateEventContent() {
   const [eventName, setEventName] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
-  const [location, setLocation] = useState('');
   const [address, setAddress] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
@@ -230,7 +229,7 @@ function CreateEventContent() {
         name: eventName,
         description,
         category,
-        location,
+        location: address,
         address,
         city,
         state,
@@ -286,7 +285,7 @@ function CreateEventContent() {
                 
                 console.log('Image data to insert:', imageData);
                 
-                const { data: savedImageData, error: imageError } = await supabase
+                const { error: imageError } = await supabase
                   .from('event_images')
                   .insert([imageData]);
                   
@@ -323,7 +322,7 @@ function CreateEventContent() {
                 
                 console.log('Album data to insert:', albumData);
                 
-                const { data: savedAlbumData, error: albumError } = await supabase
+                const { error: albumError } = await supabase
                   .from('event_images')
                   .insert(albumData);
                   
@@ -466,7 +465,7 @@ function CreateEventContent() {
                     </svg>
                   </button>
                 </div>
-                <p className="text-sm text-gray-500 mb-4">Upload the event cover to capture your audience's attention</p>
+                <p className="text-sm text-gray-500 mb-4">Upload the event cover to capture your audience&apos;s attention</p>
                 
                 {/* Hidden file input */}
                 <input 

@@ -114,7 +114,6 @@ function CalendarContent() {
   const [view, setView] = useState('month'); // month, week, day
   const [events, setEvents] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [hoveredEvent, setHoveredEvent] = useState(null);
 
   // Get user details from metadata
@@ -181,7 +180,6 @@ function CalendarContent() {
         setEvents(processedEvents);
       } catch (error) {
         console.error('Error fetching events for calendar:', error.message);
-        setError('Failed to load events. Please try again.');
         // Use mock data as fallback
         setEvents(mockEvents);
       } finally {

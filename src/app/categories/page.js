@@ -182,7 +182,7 @@ export default function Categories() {
             <div className="absolute inset-0 bg-[url('/pattern.png')] opacity-10 mix-blend-overlay"></div>
             <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
               <div className="text-center md:text-left">
-                <h3 className="text-2xl md:text-3xl font-bold text-white mb-3">Can't Find Your Category?</h3>
+                <h3 className="text-2xl md:text-3xl font-bold text-white mb-3">Can&apos;t Find Your Category?</h3>
                 <p className="text-green-100 max-w-md">
                   Suggest a new category and help us improve our platform for everyone.
                 </p>
