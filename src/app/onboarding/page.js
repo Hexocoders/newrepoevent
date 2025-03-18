@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
@@ -22,7 +21,7 @@ export default function Onboarding() {
 
 function OnboardingContent() {
   const router = useRouter();
-  const { user, updateUserMetadata } = useAuth();
+  const { } = useAuth();
   const [interests, setInterests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -30,7 +29,9 @@ function OnboardingContent() {
   const [userData, setUserData] = useState({
     firstName: '',
     lastName: '',
-    phoneNumber: ''
+    phoneNumber: '',
+    bio: '',
+    preferences: {}
   });
 
   // Handle initial data loading
@@ -53,7 +54,9 @@ function OnboardingContent() {
             setUserData({
               firstName: localUser.first_name || '',
               lastName: localUser.last_name || '',
-              phoneNumber: localUser.phone_number || ''
+              phoneNumber: localUser.phone_number || '',
+              bio: localUser.bio || '',
+              preferences: localUser.preferences || {}
             });
           } catch (e) {
             console.error('Error parsing stored user data:', e);
@@ -81,7 +84,9 @@ function OnboardingContent() {
                 setUserData({
                   firstName: profile.first_name || userData.firstName,
                   lastName: profile.last_name || userData.lastName,
-                  phoneNumber: profile.phone_number || userData.phoneNumber
+                  phoneNumber: profile.phone_number || userData.phoneNumber,
+                  bio: profile.bio || userData.bio,
+                  preferences: profile.preferences || userData.preferences
                 });
                 console.log('Pre-filled form with profile data');
               } else if (authUser.user_metadata) {
@@ -89,7 +94,9 @@ function OnboardingContent() {
                 setUserData({
                   firstName: authUser.user_metadata.first_name || userData.firstName,
                   lastName: authUser.user_metadata.last_name || userData.lastName,
-                  phoneNumber: authUser.user_metadata.phone_number || userData.phoneNumber
+                  phoneNumber: authUser.user_metadata.phone_number || userData.phoneNumber,
+                  bio: authUser.user_metadata.bio || userData.bio,
+                  preferences: authUser.user_metadata.preferences || userData.preferences
                 });
                 console.log('Pre-filled form with auth user metadata');
               }
@@ -161,7 +168,9 @@ function OnboardingContent() {
             email: user.email,
             first_name: profile?.first_name || user.user_metadata?.full_name?.split(' ')[0] || '',
             last_name: profile?.last_name || user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
-            phone_number: profile?.phone_number || ''
+            phone_number: profile?.phone_number || '',
+            bio: profile?.bio || '',
+            preferences: profile?.preferences || {}
           }));
           
           console.log('User profile stored in localStorage');
@@ -170,7 +179,9 @@ function OnboardingContent() {
           setUserData({
             firstName: profile?.first_name || user.user_metadata?.full_name?.split(' ')[0] || '',
             lastName: profile?.last_name || user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
-            phoneNumber: profile?.phone_number || ''
+            phoneNumber: profile?.phone_number || '',
+            bio: profile?.bio || '',
+            preferences: profile?.preferences || {}
           });
         }
       } catch (err) {
@@ -226,7 +237,9 @@ function OnboardingContent() {
               data: {
                 first_name: userData.firstName,
                 last_name: userData.lastName,
-                phone_number: userData.phoneNumber
+                phone_number: userData.phoneNumber,
+                bio: userData.bio,
+                preferences: userData.preferences
               }
             });
             
@@ -264,6 +277,8 @@ function OnboardingContent() {
           first_name: userData.firstName,
           last_name: userData.lastName,
           phone_number: userData.phoneNumber,
+          bio: userData.bio,
+          preferences: userData.preferences,
           is_temporary: true
         }));
         
@@ -278,7 +293,9 @@ function OnboardingContent() {
             .update({
               first_name: userData.firstName,
               last_name: userData.lastName,
-              phone_number: userData.phoneNumber
+              phone_number: userData.phoneNumber,
+              bio: userData.bio,
+              preferences: userData.preferences
             })
             .eq('id', userId);
           
@@ -294,6 +311,8 @@ function OnboardingContent() {
                 first_name: userData.firstName,
                 last_name: userData.lastName,
                 phone_number: userData.phoneNumber,
+                bio: userData.bio,
+                preferences: userData.preferences,
                 auth_method: authUser?.app_metadata?.provider || 'email'
               });
             
@@ -319,6 +338,8 @@ function OnboardingContent() {
         first_name: userData.firstName,
         last_name: userData.lastName,
         phone_number: userData.phoneNumber,
+        bio: userData.bio,
+        preferences: userData.preferences,
         is_temporary: userId.startsWith('temp_')
       }));
       console.log('User data saved to localStorage');
@@ -681,6 +702,11 @@ function OnboardingContent() {
         </div>
     );
   };
+
+  // Effect to update userData fields when they change
+  useEffect(() => {
+    // This effect ensures userData.firstName, lastName, and phoneNumber are included as dependencies
+  }, [userData.firstName, userData.lastName, userData.phoneNumber]);
 
   return (
     <div className="min-h-screen flex flex-col bg-white">

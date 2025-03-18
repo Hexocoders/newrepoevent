@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import supabase from '../lib/supabase';
+import Image from 'next/image';
 
 function ReviewEventContent() {
   const router = useRouter();
@@ -254,10 +255,11 @@ function ReviewEventContent() {
                   <div className="bg-gray-100 rounded-lg p-4">
                     <div className="relative h-48 bg-gray-200 rounded-md mb-4 overflow-hidden">
                       {event?.cover_image_url ? (
-                        <img 
+                        <Image 
                           src={event.cover_image_url} 
                           alt={event.name} 
-                          className="w-full h-full object-cover"
+                          fill
+                          className="object-cover"
                         />
                       ) : (
                         <div className="absolute inset-0 flex items-center justify-center text-gray-500">
@@ -302,10 +304,11 @@ function ReviewEventContent() {
                         <div className="grid grid-cols-3 gap-2">
                           {albumImages.map((image, index) => (
                             <div key={index} className="aspect-square rounded-md overflow-hidden">
-                              <img 
+                              <Image 
                                 src={image.image_url} 
                                 alt={`Event image ${index + 1}`} 
-                                className="w-full h-full object-cover"
+                                fill
+                                className="object-cover"
                               />
                             </div>
                           ))}

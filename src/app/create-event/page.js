@@ -4,6 +4,7 @@ import { useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import supabase from '../lib/supabase';
+import Image from 'next/image';
 
 function CreateEventContent() {
   const router = useRouter();
@@ -483,10 +484,11 @@ function CreateEventContent() {
                 >
                   {coverImageUrl ? (
                     <>
-                      <img 
+                      <Image 
                         src={coverImageUrl} 
                         alt="Cover preview" 
-                        className="w-full h-full object-cover"
+                        fill
+                        className="object-cover"
                       />
                       <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
                         <button 
@@ -613,10 +615,11 @@ function CreateEventContent() {
                       {/* Album image previews */}
                       {albumImageUrls.map((url, index) => (
                         <div key={index} className="w-16 h-16 bg-gray-200 rounded-md relative overflow-hidden">
-                          <img 
+                          <Image 
                             src={url} 
                             alt={`Album image ${index + 1}`} 
-                            className="w-full h-full object-cover"
+                            fill
+                            className="object-cover"
                           />
                           <button
                             type="button"
