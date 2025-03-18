@@ -86,7 +86,7 @@ const purchasesData = [
 
 function DashboardContent() {
   const [sortBy, setSortBy] = useState('Sales');
-  const { user, signOut } = useAuth();
+  const { } = useAuth();
   const [userData, setUserData] = useState(null);
   
   // Get user data from localStorage on component mount (client-side only)

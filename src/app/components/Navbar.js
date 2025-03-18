@@ -11,7 +11,7 @@ export default function Navbar() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  const { user, isAuthenticated, signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const dropdownRef = useRef(null);
   const [userData, setUserData] = useState(null);
   
@@ -30,7 +30,6 @@ export default function Navbar() {
   // Get user's name from localStorage
   const firstName = userData?.first_name || 'User';
   const lastName = userData?.last_name || '';
-  const fullName = `${firstName} ${lastName}`.trim();
   
   useEffect(() => {
     const handleScroll = () => {

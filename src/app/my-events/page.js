@@ -82,7 +82,6 @@ function MyEventsContent() {
   const { user } = useAuth();
   const [events, setEvents] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
@@ -174,7 +173,6 @@ function MyEventsContent() {
         setEvents(processedEvents);
       } catch (error) {
         console.error('Error fetching events:', error.message);
-        setError('Failed to load events. Please try again.');
         // Use mock data as fallback
         setEvents(mockEvents);
       } finally {
@@ -332,7 +330,7 @@ function MyEventsContent() {
           {filteredEvents.length === 0 ? (
             <div className="bg-white rounded-lg shadow p-8 text-center">
               <h3 className="text-lg font-medium text-gray-900 mb-2">No events found</h3>
-              <p className="text-gray-500 mb-4">You haven't created any events yet or none match your current filters.</p>
+              <p className="text-gray-500 mb-4">You haven&apos;t created any events yet or none match your current filters.</p>
               <Link
                 href="/create-event"
                 className="px-4 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600 inline-flex items-center gap-2"

@@ -154,7 +154,7 @@ function CreateEventContent() {
   };
 
   // Upload album images to Supabase Storage
-  const uploadAlbumImages = async (eventId) => {
+  const uploadAlbumImages = async () => {
     if (albumImages.length === 0) return [];
     
     setUploadingAlbum(true);
@@ -309,7 +309,7 @@ function CreateEventContent() {
           const albumImagesPromise = (async () => {
             try {
               console.log('Uploading album images...', albumImages.length, 'images');
-              const albumUrls = await uploadAlbumImages(eventId);
+              const albumUrls = await uploadAlbumImages();
               
               if (albumUrls.length > 0) {
                 console.log('Saving album images to event_images table...', albumUrls.length, 'URLs');
