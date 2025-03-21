@@ -43,6 +43,9 @@ export default function AddPayment() {
         .select();
 
       if (error) throw error;
+      
+      // Log the created payment method data
+      console.log('Payment method created:', data);
 
       setSuccess(true);
       setTimeout(() => {

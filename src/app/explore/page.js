@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import Navbar from '../components/Navbar';
@@ -18,13 +18,13 @@ export default function ExplorePage() {
 
   useEffect(() => {
     fetchEvents();
-  }, []);
+  }, [fetchEvents]);
 
   useEffect(() => {
     filterEvents();
-  }, [events, searchQuery, location, selectedCategory]);
+  }, [events, searchQuery, location, selectedCategory, filterEvents]);
 
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -126,37 +126,48 @@ export default function ExplorePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const filterEvents = () => {
-    if (!events || events.length === 0) return;
-    
+  const filterEvents = useCallback(() => {
+    // If there are no events yet, don't filter
+    if (!events || events.length === 0) {
+      setFilteredEvents([]);
+      return;
+    }
+
     let filtered = [...events];
-    
+
     // Filter by search query
     if (searchQuery) {
-      filtered = filtered.filter(event => 
-        event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (event.description && event.description.toLowerCase().includes(searchQuery.toLowerCase()))
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        event => 
+          event.name?.toLowerCase().includes(query) || 
+          event.description?.toLowerCase().includes(query) ||
+          event.city?.toLowerCase().includes(query) ||
+          event.state?.toLowerCase().includes(query)
       );
     }
-    
+
     // Filter by location
     if (location) {
-      filtered = filtered.filter(event => 
-        event.location.toLowerCase().includes(location.toLowerCase())
+      const locationQuery = location.toLowerCase();
+      filtered = filtered.filter(
+        event => 
+          event.city?.toLowerCase().includes(locationQuery) || 
+          event.state?.toLowerCase().includes(locationQuery)
       );
     }
-    
+
     // Filter by category
     if (selectedCategory && selectedCategory !== 'All') {
-      filtered = filtered.filter(event => 
-        event.category === selectedCategory
+      filtered = filtered.filter(
+        event => event.category === selectedCategory
       );
     }
-    
+
     setFilteredEvents(filtered);
-  };
+  }, [events, searchQuery, location, selectedCategory]);
 
   const handleApplyFilters = () => {
     filterEvents();

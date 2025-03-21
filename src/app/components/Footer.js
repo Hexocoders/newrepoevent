@@ -1,3 +1,5 @@
+import Image from 'next/image';
+
 export default function Footer() {
   return (
     <footer className="bg-gradient-to-r from-gray-900 to-purple-900 text-white pt-16 pb-8 relative overflow-hidden w-full z-10">
@@ -26,10 +28,13 @@ export default function Footer() {
           {/* Brand Column */}
           <div className="md:col-span-4 space-y-6">
             <div className="relative w-14 h-14">
-              <img 
+              <Image 
                 src="/logo.png" 
                 alt="IP Event" 
+                width={56}
+                height={56}
                 className="object-contain w-14 h-14"
+                unoptimized
               />
             </div>
             <p className="text-gray-300 max-w-md">Discover and experience the best events happening around you. Connect with like-minded people and create unforgettable memories.</p>

@@ -85,6 +85,14 @@ export default function EditEvent({ params }) {
     fetchEvent();
   }, [user, params.id, router]);
 
+  // Display loading message if we're waiting for the event data
+  useEffect(() => {
+    if (event) {
+      console.log('Event data loaded:', event.id);
+      setIsLoading(false);
+    }
+  }, [event]);
+
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData(prev => ({

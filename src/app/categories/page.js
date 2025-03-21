@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
@@ -21,7 +21,7 @@ export default function Categories() {
   useEffect(() => {
     console.log('Categories component mounted, fetching events...');
     fetchEvents();
-  }, []);
+  }, [fetchEvents]);
 
   // Filter events when activeCategory, selectedExactCategory or searchQuery changes
   useEffect(() => {
@@ -29,9 +29,9 @@ export default function Categories() {
       console.log('Filtering events based on new criteria');
       filterEvents();
     }
-  }, [events, activeCategory, selectedExactCategory, searchQuery]);
+  }, [events, activeCategory, selectedExactCategory, searchQuery, filterEvents]);
 
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     try {
       console.log('Starting to fetch events from Supabase');
       setLoading(true);
@@ -167,7 +167,7 @@ export default function Categories() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
   
   // Get category counts from events data
   const getCategoryCounts = (events) => {
@@ -186,7 +186,7 @@ export default function Categories() {
     return counts;
   };
 
-  const filterEvents = () => {
+  const filterEvents = useCallback(() => {
     if (!events || !Array.isArray(events) || events.length === 0) {
       setFilteredEvents([]);
       return;
@@ -236,7 +236,7 @@ export default function Categories() {
     
     console.log(`Filtered to ${filtered.length} events`);
     setFilteredEvents(filtered);
-  };
+  }, [events, activeCategory, selectedExactCategory, searchQuery]);
   
   // Initial featured categories
   const [featuredCategories, setFeaturedCategories] = useState([

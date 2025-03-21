@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
@@ -22,7 +22,7 @@ export default function EventPreview() {
 
   useEffect(() => {
     fetchEventDetails();
-  }, [eventId]);
+  }, [eventId, fetchEventDetails]);
 
   useEffect(() => {
     // Load Paystack script
@@ -36,7 +36,7 @@ export default function EventPreview() {
     };
   }, []);
 
-  const fetchEventDetails = async () => {
+  const fetchEventDetails = useCallback(async () => {
     try {
       const { data: eventData, error: eventError } = await supabase
         .from('events')
@@ -66,7 +66,7 @@ export default function EventPreview() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [eventId]);
 
   const handlePaystackSuccessAction = async (reference) => {
     try {
@@ -89,7 +89,10 @@ export default function EventPreview() {
         .single();
 
       if (ticketError) throw ticketError;
-
+      
+      // Log the created ticket data
+      console.log('Ticket created:', ticketData);
+      
       // Redirect to tickets page
       router.push(`/tickets?event=${event.id}`);
     } catch (error) {
