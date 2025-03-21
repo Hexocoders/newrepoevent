@@ -5,141 +5,158 @@ import Link from "next/link";
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import { motion } from "framer-motion";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
-export default function Home() {
+// Error boundary component
+function ErrorBoundary({ children }) {
+  const [hasError, setHasError] = useState(false);
+  
+  useEffect(() => {
+    // Add global error handler
+    const errorHandler = (error) => {
+      console.error('Caught runtime error:', error);
+      setHasError(true);
+    };
+    
+    window.addEventListener('error', errorHandler);
+    return () => window.removeEventListener('error', errorHandler);
+  }, []);
+  
+  if (hasError) {
+    return (
+      <div className="min-h-screen bg-white flex flex-col">
+        <Navbar />
+        <div className="flex-grow flex items-center justify-center p-6">
+          <div className="bg-white p-8 rounded-lg shadow-lg max-w-lg w-full text-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-red-500 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Something went wrong</h2>
+            <p className="text-gray-600 mb-6">We're sorry, but there was an error loading this page. Please try refreshing or come back later.</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Refresh Page
+            </button>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+  
+  return children;
+}
+
+// Home content component
+function HomeContent() {
   const [featuredEvents, setFeaturedEvents] = useState([]);
   const [trendingEvents, setTrendingEvents] = useState([]);
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState(null);
-
+  const [isClient, setIsClient] = useState(false);
+  
+  // Mark when we're in client side rendering
   useEffect(() => {
-    fetchEvents();
+    setIsClient(true);
   }, []);
-
-  const fetchEvents = async () => {
+  
+  // Fetch events only on client-side
+  useEffect(() => {
+    if (isClient) {
+      fetchEvents();
+    }
+  }, [isClient]);
+  
+  const fetchEvents = useCallback(async () => {
+    // Skip server-side execution
+    if (typeof window === 'undefined') return;
+    
     try {
+      setIsLoading(true);
+      setErrorMessage(null);
+      
       if (!supabase) {
         console.error('Supabase client not initialized');
-        setErrorMessage('Database connection error');
+        setErrorMessage('Database connection error. Please try again later.');
+        setIsLoading(false);
         return;
       }
-
-      // Fetch all events from the database
-      const { data: events, error } = await supabase
+      
+      const { data, error } = await supabase
         .from('events')
         .select(`
           id,
           name,
           description,
           event_date,
-          start_time,
           city,
           state,
-          event_images (
-            image_url,
-            is_cover
-          ),
-          ticket_tiers (
-            price
-          )
-        `);
-
-      if (error) {
-        console.error('Supabase error details:', {
-          message: error.message,
-          code: error.code,
-          details: error.details,
-          hint: error.hint
-        });
-        setErrorMessage('Error loading events');
-        return;
-      }
-
-      if (!events || events.length === 0) {
-        console.log('No events found in the database');
-        setUpcomingEvents([]);
-        return;
-      }
-
-      console.log(`Successfully fetched ${events.length} events`);
+          event_images (image_url, is_cover),
+          ticket_tiers (price)
+        `)
+        .eq('status', 'published')
+        .limit(6);
       
-      // Process events
-      const processedEvents = events.map(event => {
-        // Safely handle missing related data
-        const eventImages = Array.isArray(event.event_images) ? event.event_images : [];
-        const ticketTiers = Array.isArray(event.ticket_tiers) ? event.ticket_tiers : [];
+      if (error) {
+        throw error;
+      }
+      
+      if (!data || !Array.isArray(data)) {
+        setUpcomingEvents([]);
+        setIsLoading(false);
+        return;
+      }
+      
+      // Process events data
+      const processedEvents = data.map(event => {
+        // Find cover image
+        const coverImage = event.event_images && Array.isArray(event.event_images) 
+          ? event.event_images.find(img => img.is_cover)?.image_url 
+          : null;
         
-        const coverImage = eventImages.find(img => img?.is_cover)?.image_url || '/placeholder-event.jpg';
-        
-        let lowestPrice = 0;
-        if (ticketTiers.length > 0) {
-          const prices = ticketTiers.map(tier => tier?.price || 0).filter(price => price > 0);
-          lowestPrice = prices.length > 0 ? Math.min(...prices) : 0;
+        // Find lowest price
+        let lowestPrice = null;
+        if (event.ticket_tiers && Array.isArray(event.ticket_tiers) && event.ticket_tiers.length > 0) {
+          const prices = event.ticket_tiers
+            .filter(tier => tier.price !== null && !isNaN(tier.price))
+            .map(tier => tier.price);
+          
+          if (prices.length > 0) {
+            lowestPrice = Math.min(...prices);
+          }
         }
         
         return {
           id: event.id,
-          title: event.name || 'Untitled Event',
-          image: coverImage,
-          date: event.event_date ? new Date(event.event_date).toLocaleDateString('en-US', { 
-            weekday: 'long',
-            month: 'long',
-            day: 'numeric'
-          }) : 'Date TBA',
-          time: event.start_time || 'Time TBA',
-          location: `${event.city || ''}${event.state ? `, ${event.state}` : ''}`,
-          price: lowestPrice === 0 ? 'Free' : `₦${lowestPrice.toLocaleString()}`
+          name: event.name,
+          description: event.description,
+          date: event.event_date,
+          location: `${event.city}, ${event.state}`,
+          imageUrl: coverImage || '/placeholder-event.jpg',
+          price: lowestPrice !== null ? `$${lowestPrice.toFixed(2)}` : 'Free'
         };
       });
-
-      // Set all events in the state variables
-      setFeaturedEvents(processedEvents.slice(0, 3));
-      setTrendingEvents(processedEvents.slice(0, 2));
-      setUpcomingEvents(processedEvents); // All events go here
+      
+      setUpcomingEvents(processedEvents);
     } catch (error) {
       console.error('Error fetching events:', error);
-      // Provide more detailed error information
-      if (error instanceof TypeError && error.message === 'Failed to fetch') {
-        setErrorMessage('Network connection error. Please check your internet connection.');
-      } else {
-        setErrorMessage(`Error: ${error.message || 'Unknown error occurred'}`);
-      }
-      setUpcomingEvents([]);
+      setErrorMessage('Failed to load events. Please try again.');
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // If error or no events found, display a message
-  if (errorMessage) {
+  }, []);
+  
+  // Show loading state before client-side render
+  if (!isClient) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-white to-gray-50">
+      <div className="min-h-screen bg-white flex flex-col">
         <Navbar />
-        <div className="flex flex-col items-center justify-center p-6 text-center my-12">
-          <h2 className="text-2xl font-semibold text-red-600 mb-4">Error</h2>
-          <p className="text-gray-700 mb-6">{errorMessage}</p>
-          <button 
-            onClick={fetchEvents}
-            className="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800"
-          >
-            Try Again
-          </button>
-        </div>
-        <Footer />
-      </div>
-    );
-  }
-
-  // If loading, display a loading spinner
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-white to-gray-50">
-        <Navbar />
-        <div className="flex justify-center items-center h-64 my-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-900"></div>
+        <div className="flex-grow flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
         </div>
         <Footer />
       </div>
@@ -147,255 +164,257 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white to-gray-50">
+    <div className="flex flex-col min-h-screen">
       <Navbar />
-
+      
       {/* Hero Section */}
-      <div className="relative h-[600px] w-full overflow-hidden">
-        <Image
-          src="/hero.png"
-          alt="Hero background"
-          fill
-          className="object-cover"
-          priority
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-purple-900/80 to-pink-600/60"></div>
-        <div className="absolute inset-0 bg-[url('/pattern.png')] opacity-20 mix-blend-overlay"></div>
+      <main className="flex-grow">
+        <section className="relative py-12 md:py-16 lg:py-20 bg-gradient-to-r from-blue-600 to-indigo-800 text-white">
+          <div className="container mx-auto px-4">
+            <div className="max-w-3xl mx-auto text-center">
+              <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6">
+                Discover the best events happening near you
+              </h1>
+              <p className="text-xl mb-8">
+                Find concerts, classes, conferences, and many other amazing events
+              </p>
+              <SearchBox />
+            </div>
+          </div>
+        </section>
         
-        <div className="relative z-10 flex flex-col items-center justify-center h-full text-center px-4">
-          <motion.p 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="text-pink-200 text-3xl md:text-4xl mb-3 font-light tracking-wide"
-          >
-            Discover & Experience
-          </motion.p>
-          
-          <motion.h1 
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-5xl md:text-7xl font-bold mb-6 text-white tracking-tight"
-          >
-            <span className="block">Find Your Perfect</span>
-            <motion.span 
-              initial={{ backgroundPosition: "200% 0" }}
-              animate={{ backgroundPosition: "0% 0" }}
-              transition={{ duration: 1.5, delay: 0.4 }}
-              className="bg-clip-text text-transparent bg-gradient-to-r from-pink-400 to-purple-200"
-            >
-              Event Experience
-            </motion.span>
-          </motion.h1>
-          
-          <motion.p 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-            className="text-gray-200 max-w-xl mb-10 text-lg"
-          >
-            Connect with thousands of events happening around you. From concerts to workshops, find what moves you.
-          </motion.p>
-          
-          {/* Search Bar */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.6 }}
-            className="flex flex-col md:flex-row w-full max-w-3xl mx-auto rounded-xl overflow-hidden shadow-2xl transform transition-all duration-300 hover:shadow-pink-500/20 hover:-translate-y-1"
-          >
-            <div className="flex-1 flex flex-col md:flex-row bg-white">
-              <div className="flex items-center px-4 py-3 md:py-0 border-b md:border-b-0 md:border-r border-gray-100 flex-1">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <input
-                  type="text"
-                  placeholder="Search for events, concerts, workshops..."
-                  className="w-full p-3 text-gray-800 outline-none bg-transparent"
-                />
+        {/* Features Section */}
+        <section className="py-12 md:py-16 bg-white">
+          <div className="container mx-auto px-4">
+            <h2 className="text-2xl md:text-3xl font-bold text-center mb-12">
+              How IP Event Works
+            </h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="text-center p-6">
+                <div className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-semibold mb-2">Discover Events</h3>
+                <p className="text-gray-600">
+                  Search for events by location, category, or date to find the perfect event for you.
+                </p>
               </div>
-              <div className="flex items-center px-4 py-3 md:py-0 flex-1">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                <input
-                  type="text"
-                  placeholder="Location"
-                  className="w-full p-3 text-gray-800 outline-none bg-transparent"
-                />
+              
+              <div className="text-center p-6">
+                <div className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-semibold mb-2">Buy Tickets</h3>
+                <p className="text-gray-600">
+                  Securely purchase tickets to your favorite events with just a few clicks.
+                </p>
+              </div>
+              
+              <div className="text-center p-6">
+                <div className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-semibold mb-2">Enjoy the Experience</h3>
+                <p className="text-gray-600">
+                  Attend the event and create unforgettable memories with friends and family.
+                </p>
               </div>
             </div>
-            <motion.button 
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.98 }}
-              className="bg-gradient-to-r from-pink-600 to-purple-600 text-white px-8 py-4 font-medium transition-all hover:from-pink-700 hover:to-purple-700"
-            >
-              Discover Events
-            </motion.button>
-          </motion.div>
-          
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.8 }}
-            className="flex items-center mt-8 text-white/80 text-sm"
-          >
-            <motion.span 
-              whileHover={{ scale: 1.05 }}
-              className="flex items-center mr-4"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              10,000+ Events
-            </motion.span>
-            <motion.span 
-              whileHover={{ scale: 1.05 }}
-              className="flex items-center mr-4"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              Trusted Platform
-            </motion.span>
-            <motion.span 
-              whileHover={{ scale: 1.05 }}
-              className="flex items-center"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              Secure Payments
-            </motion.span>
-          </motion.div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-16">
-        {/* Featured Events Section */}
-        <div className="mb-20">
-          <div className="flex flex-col md:flex-row justify-between items-center mb-10">
-            <div>
-              <h2 className="text-3xl font-bold mb-2">Featured Events</h2>
-              <p className="text-gray-600">Discover the most popular events in your area</p>
-            </div>
-            <div className="mt-4 md:mt-0 flex space-x-2">
-              <button className="px-4 py-2 border border-gray-300 rounded-full text-sm hover:bg-gray-50 transition-colors">
-                This Weekend
-              </button>
-              <button className="px-4 py-2 border border-gray-300 rounded-full text-sm hover:bg-gray-50 transition-colors">
-                This Month
-              </button>
-              <button className="px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-full text-sm hover:from-pink-600 hover:to-purple-700 transition-colors">
+          </div>
+        </section>
+        
+        {/* Upcoming Events */}
+        <section className="py-12 md:py-16 bg-gray-50">
+          <div className="container mx-auto px-4">
+            <div className="flex justify-between items-center mb-8">
+              <h2 className="text-2xl md:text-3xl font-bold">Upcoming Events</h2>
+              <Link href="/explore" className="text-blue-600 hover:underline font-medium">
                 View All
-              </button>
+              </Link>
             </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {featuredEvents.map(event => (
-              <FeaturedEventCard key={event.id} {...event} />
-            ))}
-          </div>
-        </div>
-
-        {/* Categories Section */}
-        <div className="mb-20">
-          <h2 className="text-3xl font-bold mb-2">Browse Categories</h2>
-          <p className="text-gray-600 mb-10">Find events that match your interests</p>
-          
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
-            <CategoryCard icon="🎵" title="Music" count="1,200+ Events" />
-            <CategoryCard icon="🏃" title="Sports" count="800+ Events" />
-            <CategoryCard icon="🎨" title="Arts" count="650+ Events" />
-            <CategoryCard icon="💼" title="Business" count="450+ Events" />
-            <CategoryCard icon="📸" title="Photography" count="320+ Events" />
-          </div>
-        </div>
-
-        {/* Trending Events Section */}
-        <div className="mb-20">
-          <div className="flex flex-col md:flex-row justify-between items-start mb-10">
-            <div>
-              <h2 className="text-3xl font-bold mb-2">Trending This Week</h2>
-              <p className="text-gray-600">Don&apos;t miss out on the hottest events</p>
-            </div>
-            <Link href="/explore" className="mt-4 md:mt-0 px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-lg text-sm font-medium hover:from-pink-600 hover:to-purple-700 transition-colors flex items-center">
-              Explore All
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </Link>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {trendingEvents.map(event => (
-              <TrendingEventCard key={event.id} {...event} />
-            ))}
-          </div>
-        </div>
-
-        {/* Upcoming Events Section */}
-        <div className="mb-20">
-          <div className="flex flex-col md:flex-row justify-between items-start mb-10">
-            <div>
-              <h2 className="text-3xl font-bold mb-2">Upcoming Events</h2>
-              <p className="text-gray-600">Plan ahead for these amazing experiences</p>
-            </div>
-            <div className="mt-4 md:mt-0 flex space-x-2">
-              <button className="px-4 py-2 border border-gray-300 rounded-full text-sm hover:bg-gray-50 transition-colors">
-                All
-              </button>
-              <button className="px-4 py-2 border border-gray-300 rounded-full text-sm hover:bg-gray-50 transition-colors">
-                Today
-              </button>
-              <button className="px-4 py-2 border border-gray-300 rounded-full text-sm hover:bg-gray-50 transition-colors">
-                This Week
-              </button>
-              <button className="px-4 py-2 border border-gray-300 rounded-full text-sm hover:bg-gray-50 transition-colors">
-                This Month
-              </button>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {upcomingEvents.length > 0 ? (
-              upcomingEvents.map(event => (
-                <EventCard key={event.id} {...event} />
-              ))
+            
+            {isLoading ? (
+              <div className="flex justify-center items-center py-16">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
+              </div>
+            ) : errorMessage ? (
+              <div className="bg-white p-6 rounded-lg shadow text-center my-8">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-red-500 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <h3 className="text-xl font-bold text-gray-800 mb-2">{errorMessage}</h3>
+                <button 
+                  onClick={fetchEvents} 
+                  className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  Try Again
+                </button>
+              </div>
+            ) : upcomingEvents.length === 0 ? (
+              <div className="bg-white p-6 rounded-lg shadow text-center my-8">
+                <p className="text-gray-600">No upcoming events found at the moment.</p>
+              </div>
             ) : (
-              <div className="col-span-full text-center py-10">
-                <p className="text-gray-500">No upcoming events found</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                {upcomingEvents.map((event) => (
+                  <Link key={event.id} href={`/events/${event.id}`}>
+                    <div className="bg-white rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow z-10">
+                      <div className="relative h-48">
+                        <Image
+                          src={event.imageUrl}
+                          alt={event.name}
+                          fill
+                          className="object-cover"
+                          unoptimized={!event.imageUrl.startsWith('/')}
+                        />
+                      </div>
+                      <div className="p-6">
+                        <h3 className="text-xl font-bold mb-2 line-clamp-1">{event.name}</h3>
+                        <p className="text-gray-600 mb-4 line-clamp-2">{event.description}</p>
+                        <div className="flex items-center text-gray-500 mb-2">
+                          <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          <span>{event.date}</span>
+                        </div>
+                        <div className="flex items-center text-gray-500 mb-4">
+                          <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          <span>{event.location}</span>
+                        </div>
+                        <div className="font-bold text-blue-600">{event.price}</div>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
               </div>
             )}
-          </div>
-        </div>
-
-        {/* CTA Section */}
-        <div className="relative rounded-2xl overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-r from-purple-900 to-pink-600"></div>
-          <div className="absolute inset-0 bg-[url('/pattern.png')] opacity-10 mix-blend-overlay"></div>
-          
-          <div className="relative z-10 flex flex-col md:flex-row items-center justify-between p-10 md:p-16">
-            <div className="text-center md:text-left mb-8 md:mb-0">
-              <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Ready to Host Your Own Event?</h2>
-              <p className="text-purple-100 max-w-xl">
-                Create, manage, and promote your events with our powerful platform. Reach thousands of potential attendees.
-              </p>
+            
+            <div className="text-center">
+              <Link 
+                href="/explore" 
+                className="inline-block px-6 py-3 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition-colors"
+              >
+                Explore All Events
+              </Link>
             </div>
-            <Link href="/signup" className="px-8 py-4 bg-white text-purple-900 rounded-lg font-medium hover:bg-gray-100 transition-colors shadow-lg">
-              Get Started for Free
-            </Link>
           </div>
-        </div>
+        </section>
+        
+        {/* Testimonials */}
+        <section className="py-12 md:py-16 bg-white">
+          <div className="container mx-auto px-4">
+            <h2 className="text-2xl md:text-3xl font-bold text-center mb-12">
+              What Our Users Say
+            </h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="bg-gray-50 p-6 rounded-lg">
+                <div className="flex items-center mb-4">
+                  <div className="w-12 h-12 bg-gray-300 rounded-full overflow-hidden mr-4">
+                    <Image src="/testimonial-1.jpg" alt="User" width={48} height={48} />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Sarah Johnson</h3>
+                    <p className="text-gray-600 text-sm">Event Attendee</p>
+                  </div>
+                </div>
+                <p className="text-gray-700">
+                  "I found an amazing concert on IP Event last weekend. The ticket buying process was smooth, and I had no issues at the event. Highly recommend!"
+                </p>
+              </div>
+              
+              <div className="bg-gray-50 p-6 rounded-lg">
+                <div className="flex items-center mb-4">
+                  <div className="w-12 h-12 bg-gray-300 rounded-full overflow-hidden mr-4">
+                    <Image src="/testimonial-2.jpg" alt="User" width={48} height={48} />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Michael Rodriguez</h3>
+                    <p className="text-gray-600 text-sm">Event Organizer</p>
+                  </div>
+                </div>
+                <p className="text-gray-700">
+                  "As an event organizer, IP Event has made it incredibly easy to sell tickets and manage attendees. The platform is intuitive and the support team is fantastic."
+                </p>
+              </div>
+              
+              <div className="bg-gray-50 p-6 rounded-lg">
+                <div className="flex items-center mb-4">
+                  <div className="w-12 h-12 bg-gray-300 rounded-full overflow-hidden mr-4">
+                    <Image src="/testimonial-3.jpg" alt="User" width={48} height={48} />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Emily Chen</h3>
+                    <p className="text-gray-600 text-sm">Regular User</p>
+                  </div>
+                </div>
+                <p className="text-gray-700">
+                  "I use IP Event at least once a month to find interesting events in my city. The search filters are really helpful, and I've discovered so many cool activities!"
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+        
+        {/* CTA */}
+        <section className="py-12 md:py-16 bg-gradient-to-r from-indigo-800 to-blue-600 text-white">
+          <div className="container mx-auto px-4 text-center">
+            <h2 className="text-2xl md:text-3xl font-bold mb-6">
+              Ready to discover amazing events?
+            </h2>
+            <p className="text-xl mb-8 max-w-2xl mx-auto">
+              Join thousands of users who find and attend incredible events every day with IP Event.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link 
+                href="/explore" 
+                className="px-6 py-3 bg-white text-blue-600 font-medium rounded-md hover:bg-gray-100 transition-colors"
+              >
+                Explore Events
+              </Link>
+              <Link 
+                href="/create-event" 
+                className="px-6 py-3 bg-transparent border-2 border-white text-white font-medium rounded-md hover:bg-white/10 transition-colors"
+              >
+                Create Event
+              </Link>
+            </div>
+          </div>
+        </section>
       </main>
-
+      
       <Footer />
     </div>
+  );
+}
+
+// Main component with error boundary
+export default function Home() {
+  return (
+    <ErrorBoundary>
+      <Suspense fallback={
+        <div className="min-h-screen bg-white flex flex-col">
+          <Navbar />
+          <div className="flex-grow flex items-center justify-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
+          </div>
+          <Footer />
+        </div>
+      }>
+        <HomeContent />
+      </Suspense>
+    </ErrorBoundary>
   );
 }
 
