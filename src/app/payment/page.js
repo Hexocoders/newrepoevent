@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Sidebar from '../components/Sidebar';
 import { supabase } from '../../lib/supabaseClient';
@@ -21,14 +21,9 @@ function PaymentContent() {
     successfulPayments: 0,
     refundedAmount: '$0.00'
   });
+  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    if (user) {
-      fetchPaymentData();
-    }
-  }, [user, selectedStatus, dateRange]);
-
-  const fetchPaymentData = async () => {
+  const fetchPaymentData = useCallback(async () => {
     setLoading(true);
     try {
       // Fetch payment methods
@@ -186,10 +181,17 @@ function PaymentContent() {
       }
     } catch (error) {
       console.error('Error fetching payment data:', error);
+      setError('Failed to load payment data.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, selectedStatus, dateRange]);
+
+  useEffect(() => {
+    if (user) {
+      fetchPaymentData();
+    }
+  }, [user, fetchPaymentData]);
 
   const getStatusColor = (status) => {
     switch (status.toLowerCase()) {

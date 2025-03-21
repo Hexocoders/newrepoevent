@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -9,24 +9,26 @@ import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 
-export default function TicketsPage() {
+function TicketsContent() {
   const searchParams = useSearchParams();
   const { user } = useAuth();
   const [tickets, setTickets] = useState([]);
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [eventId, setEventId] = useState(null);
 
+  // Safely get event ID from search params
   useEffect(() => {
-    if (user) {
-      fetchTickets();
+    if (typeof window !== 'undefined' && searchParams) {
+      setEventId(searchParams.get('event'));
     }
-  }, [user, searchParams]);
+  }, [searchParams]);
 
-  const fetchTickets = async () => {
+  const fetchTickets = useCallback(async () => {
+    if (!user || !eventId) return;
+    
     try {
-      const eventId = searchParams.get('event');
-      
       // Fetch event details first
       const { data: eventData, error: eventError } = await supabase
         .from('events')
@@ -64,7 +66,13 @@ export default function TicketsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, eventId]);
+
+  useEffect(() => {
+    if (user && eventId && typeof window !== 'undefined') {
+      fetchTickets();
+    }
+  }, [user, eventId, fetchTickets]);
 
   if (loading) {
     return (
@@ -196,5 +204,18 @@ export default function TicketsPage() {
       
       <Footer />
     </div>
+  );
+}
+
+// Main component with suspense boundary
+export default function TicketsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex justify-center items-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-500"></div>
+      </div>
+    }>
+      <TicketsContent />
+    </Suspense>
   );
 } 
