@@ -156,7 +156,7 @@ export default function Categories() {
       const categoryCounts = getCategoryCounts(processedEvents);
       setFeaturedCategories(featuredCategories.map(cat => ({
         ...cat,
-        eventCount: categoryCounts[cat.name.toLowerCase()] || '0'
+        eventCount: String(categoryCounts[cat.exactCategory] || 0)
       })));
       
     } catch (error) {
@@ -167,7 +167,7 @@ export default function Categories() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [featuredCategories]);
   
   // Get category counts from events data
   const getCategoryCounts = (events) => {
