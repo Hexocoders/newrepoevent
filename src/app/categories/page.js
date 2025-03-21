@@ -1,21 +1,282 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import { supabase } from '../../lib/supabaseClient';
 
 export default function Categories() {
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [filteredEvents, setFilteredEvents] = useState([]);
+  const [selectedExactCategory, setSelectedExactCategory] = useState(null);
 
-  // Filter categories based on search query
-  const filteredCategories = categoriesData.filter(category => 
-    category.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    category.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Fetch events on component mount
+  useEffect(() => {
+    console.log('Categories component mounted, fetching events...');
+    fetchEvents();
+  }, []);
+
+  // Filter events when activeCategory, selectedExactCategory or searchQuery changes
+  useEffect(() => {
+    if (events && events.length > 0) {
+      console.log('Filtering events based on new criteria');
+      filterEvents();
+    }
+  }, [events, activeCategory, selectedExactCategory, searchQuery]);
+
+  const fetchEvents = async () => {
+    try {
+      console.log('Starting to fetch events from Supabase');
+      setLoading(true);
+      setError(null);
+      
+      if (!supabase) {
+        console.error('Supabase client not initialized');
+        setError('Database connection error. Please try again later.');
+        setLoading(false);
+        return;
+      }
+      
+      // Added timeout to prevent infinite loading
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timeout')), 15000)
+      );
+      
+      const fetchPromise = supabase
+        .from('events')
+        .select(`
+          id,
+          name,
+          description,
+          event_date,
+          start_time,
+          city,
+          state,
+          category,
+          created_at,
+          event_images (
+            image_url,
+            is_cover
+          ),
+          ticket_tiers (
+            price,
+            is_active
+          )
+        `)
+        .order('created_at', { ascending: false });
+      
+      const { data: eventsData, error } = await Promise.race([
+        fetchPromise,
+        timeoutPromise
+      ]);
+
+      if (error) {
+        console.error('Error fetching events:', error);
+        setError('Failed to load events. Please try again later.');
+        setLoading(false);
+        return;
+      }
+
+      console.log(`Successfully fetched ${eventsData?.length || 0} events`);
+      
+      // If no events data or empty array
+      if (!eventsData || eventsData.length === 0) {
+        console.log('No events found in database');
+        setEvents([]);
+        setFilteredEvents([]);
+        setLoading(false);
+        return;
+      }
+
+      // Process events data
+      const processedEvents = eventsData.map(event => {
+        try {
+          // Get cover image or use placeholder
+          const eventImages = Array.isArray(event.event_images) ? event.event_images : [];
+          const coverImage = eventImages.find(img => img?.is_cover)?.image_url || '/placeholder-event.jpg';
+          
+          // Get lowest price
+          const ticketTiers = Array.isArray(event.ticket_tiers) ? event.ticket_tiers : [];
+          let lowestPrice = 0;
+          if (ticketTiers.length > 0) {
+            const prices = ticketTiers
+              .filter(tier => tier?.is_active)
+              .map(tier => tier?.price || 0)
+              .filter(price => price > 0);
+            
+            lowestPrice = prices.length > 0 ? Math.min(...prices) : 0;
+          }
+          
+          return {
+            id: event.id,
+            title: event.name || 'Untitled Event',
+            description: event.description || 'No description available',
+            date: event.event_date ? new Date(event.event_date).toLocaleDateString('en-US', { 
+              month: 'long',
+              day: 'numeric',
+              year: 'numeric'
+            }) : 'Date TBA',
+            time: event.start_time || 'Time TBA',
+            location: `${event.city || ''}${event.state ? `, ${event.state}` : ''}`,
+            price: lowestPrice,
+            category: event.category || 'General',
+            image: coverImage,
+            categoryType: getCategoryType(event.category || 'General')
+          };
+        } catch (err) {
+          console.error('Error processing event:', event.id, err);
+          // Return a minimal valid event object if processing fails
+          return {
+            id: event.id || 'unknown',
+            title: event.name || 'Untitled Event',
+            description: 'Error loading event details',
+            date: 'Date unavailable',
+            time: 'Time unavailable',
+            location: 'Location unavailable',
+            price: 0,
+            category: 'General',
+            image: '/placeholder-event.jpg',
+            categoryType: 'all'
+          };
+        }
+      }).filter(event => event); // Filter out any undefined items
+      
+      console.log(`Processed ${processedEvents.length} events successfully`);
+      setEvents(processedEvents);
+      setFilteredEvents(processedEvents);
+      
+      // Get category counts for display
+      const categoryCounts = getCategoryCounts(processedEvents);
+      setFeaturedCategories(featuredCategories.map(cat => ({
+        ...cat,
+        eventCount: categoryCounts[cat.name.toLowerCase()] || '0'
+      })));
+      
+    } catch (error) {
+      console.error('Error in fetchEvents:', error);
+      setError(`An unexpected error occurred: ${error.message}. Please try again later.`);
+      setEvents([]);
+      setFilteredEvents([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Get category counts from events data
+  const getCategoryCounts = (events) => {
+    if (!Array.isArray(events)) {
+      console.error('getCategoryCounts received non-array:', events);
+      return {};
+    }
+    
+    const counts = {};
+    events.forEach(event => {
+      if (event && event.category) {
+        const category = event.category.toLowerCase();
+        counts[category] = (counts[category] || 0) + 1;
+      }
+    });
+    return counts;
+  };
+
+  const filterEvents = () => {
+    if (!events || !Array.isArray(events) || events.length === 0) {
+      setFilteredEvents([]);
+      return;
+    }
+    
+    let filtered = [...events];
+    
+    // Filter by exact category if specified
+    if (selectedExactCategory) {
+      console.log(`Filtering by exact category: ${selectedExactCategory}`);
+      filtered = filtered.filter(event => 
+        event.category && event.category.toLowerCase() === selectedExactCategory.toLowerCase()
+      );
+    }
+    // Otherwise filter by category type
+    else if (activeCategory !== 'all') {
+      if (activeCategory === 'sports') {
+        // Direct category match for sports
+        filtered = filtered.filter(event => 
+          event.category && event.category.toLowerCase() === 'sports' || 
+          event.category && event.category.toLowerCase() === 'dfgdfg'
+        );
+      } else if (activeCategory === 'entertainment') {
+        // Music and related categories
+        filtered = filtered.filter(event => 
+          event.category && ['music', 'srmrgrew', 'svds'].includes(event.category.toLowerCase())
+        );
+      } else {
+        // Use the categoryType function for other categories
+        filtered = filtered.filter(event => 
+          event.categoryType === activeCategory
+        );
+      }
+    }
+    
+    // Filter by search query
+    if (searchQuery) {
+      // Direct search by category value
+      filtered = filtered.filter(event => 
+        (event.title && event.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (event.description && event.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (event.category && event.category.toLowerCase().includes(searchQuery.toLowerCase()))
+      );
+      
+      console.log(`Search for "${searchQuery}" returned ${filtered.length} results`);
+    }
+    
+    console.log(`Filtered to ${filtered.length} events`);
+    setFilteredEvents(filtered);
+  };
+  
+  // Initial featured categories
+  const [featuredCategories, setFeaturedCategories] = useState([
+    {
+      id: 1,
+      name: "Music",
+      slug: "music",
+      icon: "🎵",
+      image: "/music-category.jpg",
+      eventCount: "0",
+      exactCategory: "music"
+    },
+    {
+      id: 2,
+      name: "Sports",
+      slug: "sports",
+      icon: "🏆",
+      image: "/sports-category.jpg",
+      eventCount: "0",
+      exactCategory: "sports"
+    },
+    {
+      id: 3,
+      name: "Food",
+      slug: "food",
+      icon: "🍽️",
+      image: "/food-category.jpg",
+      eventCount: "0",
+      exactCategory: "food"
+    },
+    {
+      id: 4,
+      name: "Technology",
+      slug: "technology",
+      icon: "💻",
+      image: "/tech-category.jpg",
+      eventCount: "0",
+      exactCategory: "technology"
+    }
+  ]);
 
   // Animation variants
   const containerVariants = {
@@ -36,6 +297,22 @@ export default function Categories() {
       transition: { duration: 0.5 }
     }
   };
+
+  // If loading takes more than 10 seconds, show a timeout message
+  const [loadingTimeout, setLoadingTimeout] = useState(false);
+
+  useEffect(() => {
+    let timer;
+    if (loading) {
+      timer = setTimeout(() => {
+        setLoadingTimeout(true);
+      }, 10000);
+    }
+    return () => clearTimeout(timer);
+  }, [loading]);
+
+  // Determine whether to show the fallback UI
+  const showFallback = (!loading && filteredEvents.length === 0 && !error);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-green-50">
@@ -97,7 +374,37 @@ export default function Categories() {
           </div>
         </div>
         
-        {/* Featured Categories */}
+        {loading ? (
+          <div className="flex flex-col justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500 mb-4"></div>
+            {loadingTimeout && (
+              <div className="text-center">
+                <p className="text-gray-600 mb-2">Taking longer than expected...</p>
+                <button 
+                  onClick={() => window.location.reload()} 
+                  className="text-green-600 underline"
+                >
+                  Refresh the page
+                </button>
+              </div>
+            )}
+          </div>
+        ) : error ? (
+          <div className="text-center py-16 bg-white rounded-lg shadow-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-red-500 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h3 className="text-xl font-medium text-gray-800 mb-2">{error}</h3>
+            <button 
+              onClick={fetchEvents}
+              className="mt-4 px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+            >
+              Try Again
+            </button>
+          </div>
+        ) : showFallback ? (
+          <>
+            {/* Featured Categories with No Events Message */}
         <div className="mb-16">
           <h2 className="text-3xl font-bold mb-8 text-center">Featured Categories</h2>
           <motion.div 
@@ -108,70 +415,182 @@ export default function Categories() {
           >
             {featuredCategories.map((category) => (
               <motion.div key={category.id} variants={itemVariants}>
-                <FeaturedCategoryCard category={category} />
+                    <FeaturedCategoryCard 
+                      category={category}
+                      onClick={() => {
+                        setActiveCategory('all');
+                        setSelectedExactCategory(category.exactCategory);
+                        document.getElementById('event-listings').scrollIntoView({ behavior: 'smooth' });
+                      }}
+                    />
               </motion.div>
             ))}
           </motion.div>
         </div>
         
         {/* Category Tabs */}
-        <div className="mb-8">
+            <div className="mb-8" id="event-listings">
           <div className="flex flex-wrap justify-center gap-3 mb-10">
             <CategoryTab 
-              active={activeCategory === 'all'} 
-              onClick={() => setActiveCategory('all')}
+                  active={activeCategory === 'all' && !selectedExactCategory} 
+                  onClick={() => {
+                    setActiveCategory('all');
+                    setSelectedExactCategory(null);
+                  }}
             >
               All Categories
             </CategoryTab>
             <CategoryTab 
-              active={activeCategory === 'entertainment'} 
-              onClick={() => setActiveCategory('entertainment')}
+                  active={activeCategory === 'entertainment' && !selectedExactCategory} 
+                  onClick={() => {
+                    setActiveCategory('entertainment');
+                    setSelectedExactCategory(null);
+                  }}
             >
               Entertainment
             </CategoryTab>
             <CategoryTab 
-              active={activeCategory === 'business'} 
-              onClick={() => setActiveCategory('business')}
+                  active={activeCategory === 'business' && !selectedExactCategory} 
+                  onClick={() => {
+                    setActiveCategory('business');
+                    setSelectedExactCategory(null);
+                  }}
             >
               Business
             </CategoryTab>
             <CategoryTab 
-              active={activeCategory === 'lifestyle'} 
-              onClick={() => setActiveCategory('lifestyle')}
+                  active={activeCategory === 'lifestyle' && !selectedExactCategory} 
+                  onClick={() => {
+                    setActiveCategory('lifestyle');
+                    setSelectedExactCategory(null);
+                  }}
             >
               Lifestyle
             </CategoryTab>
             <CategoryTab 
-              active={activeCategory === 'education'} 
-              onClick={() => setActiveCategory('education')}
+                  active={activeCategory === 'education' && !selectedExactCategory} 
+                  onClick={() => {
+                    setActiveCategory('education');
+                    setSelectedExactCategory(null);
+                  }}
             >
               Education
             </CategoryTab>
           </div>
           
-          {/* All Categories Grid */}
-          {filteredCategories.length > 0 ? (
+              {/* No Events Message */}
+              <div className="text-center py-20 bg-white rounded-lg shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-300 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <h3 className="text-xl font-medium text-gray-700 mb-2">Oops! No events under this category</h3>
+                <p className="text-gray-500">Check back later for exciting events in this category.</p>
+                <button 
+                  onClick={fetchEvents} 
+                  className="mt-4 px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                >
+                  Refresh
+                </button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Featured Categories with Real Events */}
+            <div className="mb-16">
+              <h2 className="text-3xl font-bold mb-8 text-center">Featured Categories</h2>
             <motion.div 
               variants={containerVariants}
               initial="hidden"
               animate="visible"
-              className="grid grid-cols-1 md:grid-cols-3 gap-8"
+                className="grid grid-cols-2 md:grid-cols-4 gap-6"
             >
-              {filteredCategories
-                .filter(category => activeCategory === 'all' || category.type === activeCategory)
-                .map((category) => (
+                {featuredCategories.map((category) => (
                   <motion.div key={category.id} variants={itemVariants}>
-                    <CategoryCard category={category} />
+                    <FeaturedCategoryCard 
+                      category={category}
+                      onClick={() => {
+                        setActiveCategory('all');
+                        setSelectedExactCategory(category.exactCategory);
+                        document.getElementById('event-listings').scrollIntoView({ behavior: 'smooth' });
+                      }}
+                    />
+                  </motion.div>
+                ))}
+              </motion.div>
+            </div>
+            
+            {/* Category Tabs */}
+            <div className="mb-8" id="event-listings">
+              <div className="flex flex-wrap justify-center gap-3 mb-10">
+                <CategoryTab 
+                  active={activeCategory === 'all' && !selectedExactCategory} 
+                  onClick={() => {
+                    setActiveCategory('all');
+                    setSelectedExactCategory(null);
+                  }}
+                >
+                  All Categories
+                </CategoryTab>
+                <CategoryTab 
+                  active={activeCategory === 'entertainment' && !selectedExactCategory} 
+                  onClick={() => {
+                    setActiveCategory('entertainment');
+                    setSelectedExactCategory(null);
+                  }}
+                >
+                  Entertainment
+                </CategoryTab>
+                <CategoryTab 
+                  active={activeCategory === 'business' && !selectedExactCategory} 
+                  onClick={() => {
+                    setActiveCategory('business');
+                    setSelectedExactCategory(null);
+                  }}
+                >
+                  Business
+                </CategoryTab>
+                <CategoryTab 
+                  active={activeCategory === 'lifestyle' && !selectedExactCategory} 
+                  onClick={() => {
+                    setActiveCategory('lifestyle');
+                    setSelectedExactCategory(null);
+                  }}
+                >
+                  Lifestyle
+                </CategoryTab>
+                <CategoryTab 
+                  active={activeCategory === 'education' && !selectedExactCategory} 
+                  onClick={() => {
+                    setActiveCategory('education');
+                    setSelectedExactCategory(null);
+                  }}
+                >
+                  Education
+                </CategoryTab>
+              </div>
+              
+              {/* Events Grid */}
+              {filteredEvents.length > 0 ? (
+                <motion.div 
+                  variants={containerVariants}
+                  initial="hidden"
+                  animate="visible"
+                  className="grid grid-cols-1 md:grid-cols-3 gap-8"
+                >
+                  {filteredEvents.map((event) => (
+                    <motion.div key={event.id} variants={itemVariants}>
+                      <EventCard event={event} />
                   </motion.div>
                 ))}
             </motion.div>
           ) : (
-            <div className="text-center py-20">
+                <div className="text-center py-20 bg-white rounded-lg shadow-sm">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-300 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <h3 className="text-xl font-medium text-gray-700 mb-2">No categories found</h3>
-              <p className="text-gray-500">Try adjusting your search to find what you&apos;re looking for.</p>
+                  <h3 className="text-xl font-medium text-gray-700 mb-2">No events found</h3>
+                  <p className="text-gray-500">Try adjusting your search or category selection.</p>
             </div>
           )}
         </div>
@@ -182,7 +601,7 @@ export default function Categories() {
             <div className="absolute inset-0 bg-[url('/pattern.png')] opacity-10 mix-blend-overlay"></div>
             <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
               <div className="text-center md:text-left">
-                <h3 className="text-2xl md:text-3xl font-bold text-white mb-3">Can&apos;t Find Your Category?</h3>
+                    <h3 className="text-2xl md:text-3xl font-bold text-white mb-3">Can&apos;t Find Your Category?</h3>
                 <p className="text-green-100 max-w-md">
                   Suggest a new category and help us improve our platform for everyone.
                 </p>
@@ -195,6 +614,8 @@ export default function Categories() {
             </div>
           </div>
         </div>
+          </>
+        )}
       </main>
       
       <Footer />
@@ -203,9 +624,9 @@ export default function Categories() {
 }
 
 // Featured Category Card Component
-function FeaturedCategoryCard({ category }) {
+function FeaturedCategoryCard({ category, onClick }) {
   return (
-    <Link href={`/categories/${category.slug}`} className="block group">
+    <div onClick={onClick} className="block group cursor-pointer">
       <div className="relative h-40 rounded-xl overflow-hidden shadow-md group-hover:shadow-lg transition-all duration-300">
         <Image
           src={category.image}
@@ -222,40 +643,53 @@ function FeaturedCategoryCard({ category }) {
           <p className="text-sm text-white/80">{category.eventCount} Events</p>
         </div>
       </div>
-    </Link>
+    </div>
   );
 }
 
-// Category Card Component
-function CategoryCard({ category }) {
+// Event Card Component
+function EventCard({ event }) {
   return (
-    <div className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 group">
+    <div className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 group h-full flex flex-col">
       <div className="relative h-48">
         <Image
-          src={category.image}
-          alt={category.name}
+          src={event.image}
+          alt={event.title}
           fill
           className="object-cover transition-transform duration-500 group-hover:scale-105"
+          unoptimized={event.image.startsWith('http')}
         />
         <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium text-gray-800">
-          {getCategoryTypeLabel(category.type)}
+          {event.category}
         </div>
       </div>
-      <div className="p-6">
-        <div className="flex items-center mb-3">
-          <span className="text-3xl mr-3">{category.icon}</span>
-          <h3 className="text-xl font-bold group-hover:text-green-600 transition-colors">{category.name}</h3>
+      <div className="p-6 flex-grow flex flex-col">
+        <div className="flex items-center gap-2 mb-2">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          <span className="text-gray-600 text-sm">{event.date}</span>
         </div>
-        <p className="text-gray-600 mb-4 text-sm">{category.description}</p>
-        <div className="flex justify-between items-center">
-          <p className="text-gray-500 text-sm">{category.eventCount} Events</p>
-          <Link 
-            href={`/categories/${category.slug}`}
-            className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-400 text-white rounded-lg text-sm hover:from-green-600 hover:to-emerald-500 transition-colors"
-          >
-            Explore
-          </Link>
+        <h3 className="text-xl font-bold mb-2 group-hover:text-green-600 transition-colors">{event.title}</h3>
+        <p className="text-gray-600 mb-4 text-sm flex-grow line-clamp-2">{event.description}</p>
+        <div className="flex justify-between items-center mt-auto">
+          <div className="flex items-center gap-1">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span className="text-gray-500 text-sm line-clamp-1">{event.location}</span>
+          </div>
+          <span className="font-bold text-green-600">{event.price === 0 ? "Free" : `₦${event.price.toLocaleString()}`}</span>
         </div>
+      </div>
+      <div className="px-6 pb-6">
+        <Link 
+          href={`/events/${event.id}`}
+          className="block w-full py-2 bg-gradient-to-r from-green-500 to-emerald-400 text-white text-center rounded-lg hover:from-green-600 hover:to-emerald-500 transition-colors"
+        >
+          View Details
+        </Link>
       </div>
     </div>
   );
@@ -277,172 +711,26 @@ function CategoryTab({ children, active, onClick }) {
   );
 }
 
-// Helper function
-function getCategoryTypeLabel(type) {
-  switch(type) {
-    case 'entertainment': return 'Entertainment';
-    case 'business': return 'Business';
-    case 'lifestyle': return 'Lifestyle';
-    case 'education': return 'Education';
-    default: return 'General';
+// Helper function to determine category type
+function getCategoryType(category) {
+  if (!category) return 'all';
+  
+  category = category.toLowerCase().trim();
+  
+  // Exact categories from database
+  switch (category) {
+    case 'music':
+      return 'entertainment';
+    case 'sports':
+      return 'entertainment';
+    case 'srmrgrew':
+      return 'entertainment';
+    case 'svds':
+      return 'entertainment';
+    case 'dfgdfg':
+      return 'sports';
+    default:
+      // For any unknown categories
+      return 'all';
   }
-}
-
-// Sample data
-const featuredCategories = [
-  {
-    id: 1,
-    name: "Music",
-    slug: "music",
-    icon: "🎵",
-    image: "/music-category.jpg",
-    eventCount: "1,200+"
-  },
-  {
-    id: 2,
-    name: "Sports",
-    slug: "sports",
-    icon: "🏆",
-    image: "/sports-category.jpg",
-    eventCount: "850+"
-  },
-  {
-    id: 3,
-    name: "Food & Drink",
-    slug: "food-drink",
-    icon: "🍽️",
-    image: "/food-category.jpg",
-    eventCount: "750+"
-  },
-  {
-    id: 4,
-    name: "Technology",
-    slug: "technology",
-    icon: "💻",
-    image: "/tech-category.jpg",
-    eventCount: "620+"
-  }
-];
-
-const categoriesData = [
-  {
-    id: 1,
-    name: "Music",
-    slug: "music",
-    icon: "🎵",
-    image: "/music-category.jpg",
-    description: "Concerts, festivals, live performances, and more for music lovers of all genres.",
-    eventCount: "1,200+",
-    type: "entertainment"
-  },
-  {
-    id: 2,
-    name: "Sports",
-    slug: "sports",
-    icon: "🏆",
-    image: "/sports-category.jpg",
-    description: "From major leagues to local tournaments, find sporting events for fans and participants.",
-    eventCount: "850+",
-    type: "entertainment"
-  },
-  {
-    id: 3,
-    name: "Food & Drink",
-    slug: "food-drink",
-    icon: "🍽️",
-    image: "/food-category.jpg",
-    description: "Culinary festivals, tastings, cooking classes, and gastronomic experiences.",
-    eventCount: "750+",
-    type: "lifestyle"
-  },
-  {
-    id: 4,
-    name: "Technology",
-    slug: "technology",
-    icon: "💻",
-    image: "/tech-category.jpg",
-    description: "Tech conferences, hackathons, product launches, and innovation showcases.",
-    eventCount: "620+",
-    type: "business"
-  },
-  {
-    id: 5,
-    name: "Arts & Culture",
-    slug: "arts-culture",
-    icon: "🎨",
-    image: "/arts-category.jpg",
-    description: "Exhibitions, performances, cultural festivals, and artistic showcases.",
-    eventCount: "580+",
-    type: "entertainment"
-  },
-  {
-    id: 6,
-    name: "Business & Networking",
-    slug: "business-networking",
-    icon: "💼",
-    image: "/business-category.jpg",
-    description: "Conferences, networking events, workshops, and professional development opportunities.",
-    eventCount: "520+",
-    type: "business"
-  },
-  {
-    id: 7,
-    name: "Health & Wellness",
-    slug: "health-wellness",
-    icon: "🧘",
-    image: "/wellness-category.jpg",
-    description: "Fitness classes, wellness retreats, health seminars, and mindfulness sessions.",
-    eventCount: "480+",
-    type: "lifestyle"
-  },
-  {
-    id: 8,
-    name: "Education",
-    slug: "education",
-    icon: "📚",
-    image: "/education-category.jpg",
-    description: "Workshops, seminars, courses, and learning opportunities across various subjects.",
-    eventCount: "450+",
-    type: "education"
-  },
-  {
-    id: 9,
-    name: "Photography",
-    slug: "photography",
-    icon: "📸",
-    image: "/photography-category.jpg",
-    description: "Photography workshops, exhibitions, photo walks, and camera gear events.",
-    eventCount: "320+",
-    type: "lifestyle"
-  },
-  {
-    id: 10,
-    name: "Family & Kids",
-    slug: "family-kids",
-    icon: "👨‍👩‍👧‍👦",
-    image: "/family-category.jpg",
-    description: "Family-friendly activities, children's events, and entertainment for all ages.",
-    eventCount: "380+",
-    type: "entertainment"
-  },
-  {
-    id: 11,
-    name: "Science & Nature",
-    slug: "science-nature",
-    icon: "🔬",
-    image: "/science-category.jpg",
-    description: "Scientific exhibitions, nature walks, astronomical viewings, and environmental events.",
-    eventCount: "290+",
-    type: "education"
-  },
-  {
-    id: 12,
-    name: "Fashion & Beauty",
-    slug: "fashion-beauty",
-    icon: "👗",
-    image: "/fashion-category.jpg",
-    description: "Fashion shows, beauty expos, styling workshops, and industry showcases.",
-    eventCount: "310+",
-    type: "lifestyle"
-  }
-]; 
+} 

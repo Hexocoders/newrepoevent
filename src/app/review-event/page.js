@@ -30,55 +30,52 @@ function ReviewEventContent() {
         }
         
         // Fetch event data from Supabase
-        const { data, error } = await supabase
+        const { data: eventData, error: eventError } = await supabase
           .from('events')
-          .select('*')
+          .select(`
+            *,
+            event_images (*),
+            ticket_tiers (*)
+          `)
           .eq('id', eventId)
           .single();
           
-        if (error) throw error;
+        if (eventError) throw eventError;
         
-        if (!data) {
+        if (!eventData) {
           throw new Error('Event not found');
         }
         
-        setEvent(data);
+        // Process the event data
+        setEvent(eventData);
         
-        // Fetch cover image and album images
-        try {
-          const { data: imageData, error: imageError } = await supabase
-            .from('event_images')
-            .select('*')
-            .eq('event_id', eventId);
-            
-          if (imageError) {
-            console.error('Error fetching images:', imageError.message);
-          } else if (imageData && imageData.length > 0) {
-            // Find cover image
-            const coverImage = imageData.find(img => img.is_cover === true);
-            if (coverImage) {
-              // Add cover image URL to event object
-              setEvent(prev => ({
-                ...prev,
-                cover_image_url: coverImage.image_url
-              }));
-              console.log('Cover image found:', coverImage.image_url);
-            } else {
-              console.log('No cover image found in event_images');
-            }
-            
-            // Set album images (non-cover images)
-            const albumImgs = imageData.filter(img => img.is_cover === false);
-            if (albumImgs.length > 0) {
-              setAlbumImages(albumImgs);
-              console.log('Album images found:', albumImgs.length);
-            }
-          } else {
-            console.log('No images found for event');
+        // Process images
+        if (eventData.event_images && eventData.event_images.length > 0) {
+          // Find cover image
+          const coverImage = eventData.event_images.find(img => img.is_cover === true);
+          if (coverImage) {
+            setEvent(prev => ({
+              ...prev,
+              cover_image_url: coverImage.image_url
+            }));
           }
-        } catch (imageError) {
-          console.error('Error fetching images:', imageError.message);
-          // Continue without images
+          
+          // Set album images (non-cover images)
+          const albumImgs = eventData.event_images.filter(img => !img.is_cover);
+          if (albumImgs.length > 0) {
+            setAlbumImages(albumImgs);
+          }
+        }
+
+        // Process ticket data if this is a paid event
+        if (eventData.is_paid && eventData.ticket_tiers && eventData.ticket_tiers.length > 0) {
+          // Get the first/standard ticket tier
+          const standardTicket = eventData.ticket_tiers[0];
+          setEvent(prev => ({
+            ...prev,
+            ticket_price: standardTicket.price,
+            ticket_quantity: standardTicket.quantity
+          }));
         }
       } catch (error) {
         console.error('Error fetching event:', error.message);
@@ -97,6 +94,7 @@ function ReviewEventContent() {
       let publishData = {
         status: 'published',
         published_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
       
       // If schedule is enabled, set scheduled publish date
@@ -105,6 +103,7 @@ function ReviewEventContent() {
         publishData = {
           status: 'scheduled',
           scheduled_publish_date: scheduledDate.toISOString(),
+          updated_at: new Date().toISOString()
         };
       }
       
@@ -116,7 +115,7 @@ function ReviewEventContent() {
         
       if (error) throw error;
       
-      // Redirect to dashboard or success page
+      // Redirect to dashboard
       router.push('/dashboard');
     } catch (error) {
       console.error('Error publishing event:', error.message);
@@ -274,7 +273,7 @@ function ReviewEventContent() {
                     </div>
                     
                     <div className="mb-2">
-                      <span className="text-pink-500 text-sm">From ${event?.price || 0}</span>
+                      <span className="text-pink-500 text-sm">From ${event?.ticket_price || 0}</span>
                     </div>
                     
                     <h3 className="text-lg font-semibold mb-1">{event?.name}</h3>
@@ -383,12 +382,12 @@ function ReviewEventContent() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <h3 className="text-sm font-medium text-gray-700">Price</h3>
-                        <p className="text-sm text-gray-600 mt-1">${event?.price || '0'}</p>
+                        <p className="text-sm text-gray-600 mt-1">${event?.ticket_price || '0'}</p>
                       </div>
                       
                       <div>
                         <h3 className="text-sm font-medium text-gray-700">Quantity</h3>
-                        <p className="text-sm text-gray-600 mt-1">{event?.quantity || '0'} tickets</p>
+                        <p className="text-sm text-gray-600 mt-1">{event?.ticket_quantity || '0'} tickets</p>
                       </div>
                     </div>
                   )}

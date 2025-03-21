@@ -6,22 +6,96 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import { supabase } from '../../lib/supabaseClient';
 
 export default function NewEvents() {
   const [events, setEvents] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedView, setSelectedView] = useState('grid');
   const [sortBy, setSortBy] = useState('newest');
+  const [error, setError] = useState(null);
 
-  // Simulate loading events
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setEvents(sampleEvents);
-      setIsLoading(false);
-    }, 1500);
-    
-    return () => clearTimeout(timer);
+    fetchEvents();
   }, []);
+
+  const fetchEvents = async () => {
+    try {
+      setIsLoading(true);
+      
+      const { data: eventsData, error } = await supabase
+        .from('events')
+        .select(`
+          id,
+          name,
+          description,
+          event_date,
+          start_time,
+          city,
+          state,
+          category,
+          created_at,
+          event_images (
+            image_url,
+            is_cover
+          ),
+          ticket_tiers (
+            price
+          )
+        `)
+        .order('created_at', { ascending: false })
+        .limit(12);
+
+      if (error) {
+        console.error('Error fetching events:', error);
+        setError('Failed to load events');
+        return;
+      }
+
+      // Process events data
+      const processedEvents = eventsData.map(event => {
+        // Get cover image or use placeholder
+        const coverImage = event.event_images?.find(img => img?.is_cover)?.image_url || '/placeholder-event.jpg';
+        
+        // Get lowest price
+        let lowestPrice = 0;
+        if (event.ticket_tiers && event.ticket_tiers.length > 0) {
+          const prices = event.ticket_tiers.map(tier => tier.price).filter(price => price > 0);
+          lowestPrice = prices.length > 0 ? Math.min(...prices) : 0;
+        }
+        
+        // Calculate attendees (random for now)
+        const attendees = Math.floor(Math.random() * 300) + 50;
+        
+        // Format date
+        const formattedDate = event.event_date ? new Date(event.event_date).toLocaleDateString('en-US', { 
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric'
+        }) : 'Date TBA';
+        
+        return {
+          id: event.id,
+          title: event.name || 'Untitled Event',
+          description: event.description || 'No description available',
+          date: formattedDate,
+          location: `${event.city || ''}${event.state ? `, ${event.state}` : ''}`,
+          category: event.category || 'General',
+          price: lowestPrice,
+          attendees: attendees,
+          image: coverImage,
+          isNew: true // All events on this page are considered "new"
+        };
+      });
+
+      setEvents(processedEvents);
+    } catch (error) {
+      console.error('Error:', error);
+      setError('An unexpected error occurred');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Sort events based on selected option
   const sortedEvents = [...events].sort((a, b) => {
@@ -155,6 +229,19 @@ export default function NewEvents() {
           <div className="flex justify-center items-center py-20">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-amber-500"></div>
           </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-red-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h3 className="text-xl font-medium text-gray-800 mb-2">{error}</h3>
+            <button 
+              onClick={fetchEvents}
+              className="mt-4 px-6 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
+            >
+              Try Again
+            </button>
+          </div>
         ) : (
           <>
             {/* Grid View */}
@@ -165,11 +252,21 @@ export default function NewEvents() {
                 animate="visible"
                 className="grid grid-cols-1 md:grid-cols-3 gap-8"
               >
-                {sortedEvents.map((event) => (
-                  <motion.div key={event.id} variants={itemVariants}>
-                    <EventCard event={event} />
-                  </motion.div>
-                ))}
+                {sortedEvents.length > 0 ? (
+                  sortedEvents.map((event) => (
+                    <motion.div key={event.id} variants={itemVariants}>
+                      <EventCard event={event} />
+                    </motion.div>
+                  ))
+                ) : (
+                  <div className="col-span-3 text-center py-20">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-300 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <h3 className="text-xl font-medium text-gray-700 mb-2">No new events found</h3>
+                    <p className="text-gray-500">Check back soon for new events!</p>
+                  </div>
+                )}
               </motion.div>
             )}
             
@@ -181,11 +278,21 @@ export default function NewEvents() {
                 animate="visible"
                 className="space-y-6"
               >
-                {sortedEvents.map((event) => (
-                  <motion.div key={event.id} variants={itemVariants}>
-                    <EventListItem event={event} />
-                  </motion.div>
-                ))}
+                {sortedEvents.length > 0 ? (
+                  sortedEvents.map((event) => (
+                    <motion.div key={event.id} variants={itemVariants}>
+                      <EventListItem event={event} />
+                    </motion.div>
+                  ))
+                ) : (
+                  <div className="text-center py-20">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-300 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <h3 className="text-xl font-medium text-gray-700 mb-2">No new events found</h3>
+                    <p className="text-gray-500">Check back soon for new events!</p>
+                  </div>
+                )}
               </motion.div>
             )}
           </>
@@ -271,7 +378,7 @@ function EventCard({ event }) {
             </svg>
             <span className="text-gray-500 text-sm">{event.location}</span>
           </div>
-          <span className="font-bold text-amber-600">${event.price}</span>
+          <span className="font-bold text-amber-600">{event.price === 0 ? "Free" : `₦${event.price.toLocaleString()}`}</span>
         </div>
       </div>
       <div className="px-6 pb-6">
@@ -335,7 +442,7 @@ function EventListItem({ event }) {
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <span className="font-bold text-amber-600 text-lg">${event.price}</span>
+              <span className="font-bold text-amber-600 text-lg">{event.price === 0 ? "Free" : `₦${event.price.toLocaleString()}`}</span>
               <Link 
                 href={`/events/${event.id}`}
                 className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-400 text-white rounded-lg hover:from-amber-600 hover:to-orange-500 transition-colors"
@@ -348,80 +455,4 @@ function EventListItem({ event }) {
       </div>
     </div>
   );
-}
-
-// Sample data
-const sampleEvents = [
-  {
-    id: 1,
-    title: "Tech Innovation Summit 2023",
-    description: "Join industry leaders for a day of insights on the latest technological innovations and future trends.",
-    date: "Dec 15, 2023",
-    location: "San Francisco, CA",
-    category: "Technology",
-    price: 149,
-    attendees: 342,
-    image: "/tech-event.jpg",
-    isNew: true
-  },
-  {
-    id: 2,
-    title: "Winter Music Festival",
-    description: "Experience an unforgettable night of live performances from top artists across multiple genres.",
-    date: "Dec 18, 2023",
-    location: "Austin, TX",
-    category: "Music",
-    price: 89,
-    attendees: 520,
-    image: "/music-event.jpg",
-    isNew: true
-  },
-  {
-    id: 3,
-    title: "Culinary Masterclass",
-    description: "Learn cooking techniques from renowned chefs and elevate your culinary skills in this hands-on workshop.",
-    date: "Dec 20, 2023",
-    location: "Chicago, IL",
-    category: "Food & Drink",
-    price: 75,
-    attendees: 128,
-    image: "/food-event.jpg",
-    isNew: true
-  },
-  {
-    id: 4,
-    title: "Digital Marketing Conference",
-    description: "Discover the latest strategies and tools to boost your online presence and drive business growth.",
-    date: "Jan 5, 2024",
-    location: "New York, NY",
-    category: "Business",
-    price: 199,
-    attendees: 275,
-    image: "/marketing-event.jpg",
-    isNew: true
-  },
-  {
-    id: 5,
-    title: "Wellness Retreat Weekend",
-    description: "Rejuvenate your mind and body with yoga, meditation, and wellness workshops in a serene setting.",
-    date: "Jan 12-14, 2024",
-    location: "Denver, CO",
-    category: "Health & Wellness",
-    price: 299,
-    attendees: 85,
-    image: "/wellness-event.jpg",
-    isNew: true
-  },
-  {
-    id: 6,
-    title: "Photography Workshop",
-    description: "Master the art of photography with expert guidance on composition, lighting, and editing techniques.",
-    date: "Jan 18, 2024",
-    location: "Seattle, WA",
-    category: "Arts",
-    price: 120,
-    attendees: 64,
-    image: "/photography-event.jpg",
-    isNew: true
-  }
-]; 
+} 

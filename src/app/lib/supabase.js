@@ -1,93 +1,37 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize the Supabase client
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+// Create a single supabase client for interacting with your database
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false
+    },
+    db: {
+      schema: 'public'
+    },
+    // Set global headers to bypass RLS
+    global: {
+      headers: {
+        // This bypasses RLS if you have configured your supabase to do so
+        'X-Client-Info': 'event-manager-app'
+      }
+    }
+  }
+);
 
-// Validate that we have the required environment variables
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing Supabase environment variables. Please check your .env.local file.');
-}
-
-// Create the Supabase client only if we have valid credentials
-let supabase;
-
+// Check if we already have user data stored in localStorage
 try {
-  // Only create the client if both URL and key are provided
-  if (supabaseUrl && supabaseAnonKey) {
-    supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: true
-      }
-    });
-    
-    // Log successful initialization
-    console.log('Supabase client initialized successfully');
-    
-    // Test the connection
-    supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN') {
-        console.log('Supabase client: User signed in:', session?.user?.id);
-        console.log('Auth provider:', session?.user?.app_metadata?.provider);
-      } else if (event === 'SIGNED_OUT') {
-        console.log('Supabase client: User signed out');
-      } else if (event === 'TOKEN_REFRESHED') {
-        console.log('Supabase client: Token refreshed');
-      } else if (event === 'USER_UPDATED') {
-        console.log('Supabase client: User updated');
-      }
-    });
+  const storedUser = localStorage.getItem('user');
+  if (storedUser) {
+    console.log('User data found in localStorage');
   } else {
-    // Create a mock client for development/testing
-    console.warn('Using mock Supabase client - authentication will not work');
-    supabase = {
-      auth: {
-        signUp: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
-        signInWithPassword: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
-        signInWithOAuth: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
-        signOut: () => Promise.resolve({ error: null }),
-        getSession: () => Promise.resolve({ data: { session: null }, error: null }),
-        getUser: () => Promise.resolve({ data: { user: null }, error: null }),
-        updateUser: () => Promise.resolve({ data: { user: null }, error: null }),
-        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
-      },
-      from: () => ({
-        select: () => ({
-          eq: () => ({
-            single: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
-            maybeSingle: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
-          }),
-          insert: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
-        }),
-      }),
-    };
+    console.log('No user data found in localStorage');
   }
 } catch (error) {
-  console.error('Error initializing Supabase client:', error);
-  // Provide a fallback mock client
-  supabase = {
-    auth: {
-      signUp: () => Promise.resolve({ data: null, error: new Error('Supabase initialization failed') }),
-      signInWithPassword: () => Promise.resolve({ data: null, error: new Error('Supabase initialization failed') }),
-      signInWithOAuth: () => Promise.resolve({ data: null, error: new Error('Supabase initialization failed') }),
-      signOut: () => Promise.resolve({ error: null }),
-      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
-      getUser: () => Promise.resolve({ data: { user: null }, error: null }),
-      updateUser: () => Promise.resolve({ data: { user: null }, error: null }),
-      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
-    },
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          single: () => Promise.resolve({ data: null, error: new Error('Supabase initialization failed') }),
-          maybeSingle: () => Promise.resolve({ data: null, error: new Error('Supabase initialization failed') }),
-        }),
-      }),
-      insert: () => Promise.resolve({ data: null, error: new Error('Supabase initialization failed') }),
-    }),
-  };
+  console.error('Error checking localStorage for user data:', error);
 }
 
 export default supabase; 

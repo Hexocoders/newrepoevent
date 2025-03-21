@@ -6,28 +6,125 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import { supabase } from '../../lib/supabaseClient';
 
 export default function UpcomingEvents() {
   const [filter, setFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [events, setEvents] = useState([]);
+  const [error, setError] = useState(null);
 
-  // Simulate loading events
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setEvents(upcomingEventsData);
-      setIsLoading(false);
-    }, 1000);
-    
-    return () => clearTimeout(timer);
+    fetchEvents();
   }, []);
 
-  // Filter events based on selected filter and search query
+  const fetchEvents = async () => {
+    try {
+      setIsLoading(true);
+      
+      const { data: eventsData, error } = await supabase
+        .from('events')
+        .select(`
+          id,
+          name,
+          description,
+          event_date,
+          start_time,
+          city,
+          state,
+          category,
+          created_at,
+          event_images (
+            image_url,
+            is_cover
+          ),
+          ticket_tiers (
+            price
+          )
+        `);
+
+      if (error) {
+        console.error('Error fetching events:', error);
+        setError('Failed to load events');
+        return;
+      }
+
+      // Process events data
+      const processedEvents = eventsData.map(event => {
+        // Get cover image or use placeholder
+        const coverImage = event.event_images?.find(img => img?.is_cover)?.image_url || '/placeholder-event.jpg';
+        
+        // Get lowest price
+        let lowestPrice = 0;
+        if (event.ticket_tiers && event.ticket_tiers.length > 0) {
+          const prices = event.ticket_tiers.map(tier => tier.price).filter(price => price > 0);
+          lowestPrice = prices.length > 0 ? Math.min(...prices) : 0;
+        }
+        
+        // Determine time frame (for filtering purposes only)
+        const eventDate = new Date(event.event_date);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        
+        const nextWeek = new Date(today);
+        nextWeek.setDate(nextWeek.getDate() + 7);
+        
+        const nextMonth = new Date(today);
+        nextMonth.setMonth(nextMonth.getMonth() + 1);
+        
+        let timeFrame = 'all';
+        if (eventDate.toDateString() === today.toDateString()) {
+          timeFrame = 'today';
+        } else if (eventDate.toDateString() === tomorrow.toDateString()) {
+          timeFrame = 'tomorrow';
+        } else if (eventDate > today && eventDate <= nextWeek) {
+          timeFrame = 'thisWeek';
+        } else if (eventDate > nextWeek && eventDate <= nextMonth) {
+          timeFrame = 'thisMonth';
+        }
+        
+        // Just for UI purposes - not for limiting display
+        const isFeatured = event.created_at && new Date(event.created_at) > new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+        
+        return {
+          id: event.id,
+          title: event.name || 'Untitled Event',
+          description: event.description,
+          date: event.event_date ? new Date(event.event_date).toLocaleDateString('en-US', { 
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric'
+          }) : 'Date TBA',
+          time: event.start_time || 'Time TBA',
+          location: `${event.city || ''}${event.state ? `, ${event.state}` : ''}`,
+          price: lowestPrice === 0 ? "Free" : `From ₦${lowestPrice.toLocaleString()}`,
+          category: event.category || 'General',
+          image: coverImage,
+          timeFrame: timeFrame,
+          featured: isFeatured
+        };
+      });
+
+      setEvents(processedEvents);
+    } catch (error) {
+      console.error('Error:', error);
+      setError('An unexpected error occurred');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Filter events based on selected filter and search query, but if filter is 'all', show everything
   const filteredEvents = events.filter(event => {
     const matchesFilter = filter === 'all' || event.timeFrame === filter;
-    const matchesSearch = event.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          event.location.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = searchQuery === '' || 
+                          event.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          event.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (event.description && event.description.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesFilter && matchesSearch;
   });
 
@@ -123,6 +220,19 @@ export default function UpcomingEvents() {
         {isLoading ? (
           <div className="flex justify-center items-center py-20">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-red-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h3 className="text-xl font-medium text-gray-800 mb-2">{error}</h3>
+            <button 
+              onClick={fetchEvents}
+              className="mt-4 px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              Try Again
+            </button>
           </div>
         ) : (
           <>
@@ -273,107 +383,4 @@ function getTimeFrameColor(timeFrame) {
     case 'thisMonth': return 'bg-teal-500';
     default: return 'bg-gray-500';
   }
-}
-
-// Sample data
-const upcomingEventsData = [
-  {
-    id: 1,
-    title: "Tech Conference 2023",
-    image: "/tech-conference.jpg",
-    date: "June 15, 2023 | 09:00 AM",
-    location: "Convention Center, New York",
-    price: "From $150",
-    category: "Technology",
-    timeFrame: "thisMonth",
-    featured: true
-  },
-  {
-    id: 2,
-    title: "Summer Music Festival",
-    image: "/music-festival.jpg",
-    date: "June 3, 2023 | 04:00 PM",
-    location: "Central Park, New York",
-    price: "From $75",
-    category: "Music",
-    timeFrame: "thisWeek",
-    featured: true
-  },
-  {
-    id: 3,
-    title: "Startup Networking Mixer",
-    image: "/startup-mixer.jpg",
-    date: "Today | 06:30 PM",
-    location: "Innovation Hub, Boston",
-    price: "From $25",
-    category: "Business",
-    timeFrame: "today",
-    featured: false
-  },
-  {
-    id: 4,
-    title: "Modern Art Exhibition",
-    image: "/art-exhibition.jpg",
-    date: "Tomorrow | 10:00 AM",
-    location: "Metropolitan Museum, New York",
-    price: "From $20",
-    category: "Arts",
-    timeFrame: "tomorrow",
-    featured: false
-  },
-  {
-    id: 5,
-    title: "Culinary Masterclass",
-    image: "/culinary-class.jpg",
-    date: "June 10, 2023 | 02:00 PM",
-    location: "Gourmet Kitchen, Chicago",
-    price: "From $120",
-    category: "Food",
-    timeFrame: "thisWeek",
-    featured: false
-  },
-  {
-    id: 6,
-    title: "Fitness Bootcamp",
-    image: "/fitness-bootcamp.jpg",
-    date: "Today | 07:00 AM",
-    location: "Riverside Park, New York",
-    price: "From $30",
-    category: "Health",
-    timeFrame: "today",
-    featured: false
-  },
-  {
-    id: 7,
-    title: "Photography Workshop",
-    image: "/photography-workshop.jpg",
-    date: "June 18, 2023 | 11:00 AM",
-    location: "Creative Studio, San Francisco",
-    price: "From $85",
-    category: "Photography",
-    timeFrame: "thisMonth",
-    featured: false
-  },
-  {
-    id: 8,
-    title: "Jazz Night",
-    image: "/jazz-night.jpg",
-    date: "Tomorrow | 08:00 PM",
-    location: "Blue Note, New York",
-    price: "From $45",
-    category: "Music",
-    timeFrame: "tomorrow",
-    featured: false
-  },
-  {
-    id: 9,
-    title: "Blockchain Summit",
-    image: "/blockchain-summit.jpg",
-    date: "June 22, 2023 | 09:30 AM",
-    location: "Tech Center, Seattle",
-    price: "From $200",
-    category: "Technology",
-    timeFrame: "thisMonth",
-    featured: true
-  }
-]; 
+} 

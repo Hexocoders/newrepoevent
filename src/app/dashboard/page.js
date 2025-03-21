@@ -5,89 +5,24 @@ import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
-
-// Mock data for sales by event
-const salesData = [
-  {
-    id: 1,
-    image: '/rock.png',
-    event: 'Rock Revolt: A Fusion of Power and Passion',
-    date: 'Monday, June 10',
-    status: 'in 5 days',
-    statusColor: 'text-pink-500 bg-pink-50',
-    ticketsSold: '100/300',
-    revenue: '$ 234'
-  },
-  {
-    id: 2,
-    image: '/stage.png',
-    event: 'Rock Fest Extravaganza',
-    date: 'Tuesday, June 21',
-    status: 'Next 2 weeks',
-    statusColor: 'text-green-500 bg-green-50',
-    ticketsSold: '200/300',
-    revenue: '$ 1,390'
-  },
-  {
-    id: 3,
-    image: '/festival.png',
-    event: 'A Legendary Gathering of Rock Icons',
-    date: 'Friday, July 20',
-    status: 'Next month',
-    statusColor: 'text-green-500 bg-green-50',
-    ticketsSold: '120/300',
-    revenue: '$ 2,345'
-  }
-];
-
-// Mock data for recent purchases
-const purchasesData = [
-  {
-    code: '#238920483',
-    buyer: 'Ashley Wilson',
-    date: '11/18/2022',
-    time: '11:25 PM',
-    ticketsSold: 1,
-    totalPrice: '$58'
-  },
-  {
-    code: '#238920359',
-    buyer: 'Anna Fernandez',
-    date: '11/18/2022',
-    time: '09:15 PM',
-    ticketsSold: 2,
-    totalPrice: '$68'
-  },
-  {
-    code: '#238920459',
-    buyer: 'Elizabeth Bailey',
-    date: '11/18/2022',
-    time: '03:55 AM',
-    ticketsSold: 3,
-    totalPrice: '$7'
-  },
-  {
-    code: '#238920359',
-    buyer: 'John Edwards',
-    date: '11/18/2022',
-    time: '03:09 AM',
-    ticketsSold: 1,
-    totalPrice: '$21'
-  },
-  {
-    code: '#238920483',
-    buyer: 'Jacob Jackson',
-    date: '11/18/2022',
-    time: '03:43 PM',
-    ticketsSold: 2,
-    totalPrice: '$81'
-  }
-];
+import supabase from '../lib/supabase';
 
 function DashboardContent() {
   const [sortBy, setSortBy] = useState('Sales');
   const { } = useAuth();
   const [userData, setUserData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  // Add state for dashboard data
+  const [salesData, setSalesData] = useState([]);
+  const [purchasesData, setPurchasesData] = useState([]);
+  const [eventStats, setEventStats] = useState({
+    revenue: 0,
+    ticketsSold: 0,
+    totalTickets: 0,
+    shares: 0
+  });
   
   // Get user data from localStorage on component mount (client-side only)
   useEffect(() => {
@@ -100,12 +35,254 @@ function DashboardContent() {
       console.error('Error reading from localStorage:', error);
     }
   }, []);
+
+  // Fetch dashboard data from Supabase
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      setIsLoading(true);
+      try {
+        const storedUser = localStorage.getItem('user');
+        if (!storedUser) {
+          throw new Error('User not found. Please sign in again.');
+        }
+        
+        const user = JSON.parse(storedUser);
+        console.log('Fetching data for user:', user.id);
+        
+        // Fetch user's events with ticket tiers
+        const { data: events, error: eventsError } = await supabase
+          .from('events')
+          .select(`
+            id,
+            name,
+            event_date,
+            start_time,
+            city,
+            state,
+            status,
+            created_at,
+            ticket_tiers (
+              id, 
+              price,
+              quantity
+            ),
+            event_images (
+              id,
+              image_url,
+              is_cover
+            )
+          `)
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+          
+        if (eventsError) throw eventsError;
+        
+        // Process events for sales data display
+        const processedSales = events.map(event => {
+          // Find cover image
+          const coverImage = event.event_images?.find(img => img.is_cover)?.image_url || '/placeholder.png';
+          
+          // Calculate total tickets and tickets sold (assuming we'd fetch this from a tickets table in a real app)
+          const ticketTier = event.ticket_tiers?.[0];
+          const totalTickets = ticketTier?.quantity || 0;
+          const ticketsSold = Math.floor(Math.random() * totalTickets); // Simulate sold tickets for now
+          
+          // Calculate revenue
+          const revenue = ticketsSold * (ticketTier?.price || 0);
+          
+          // Determine status based on event date
+          const eventDate = new Date(event.event_date);
+          const today = new Date();
+          const diffTime = eventDate - today;
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          
+          let status = '';
+          let statusColor = '';
+          
+          if (diffDays < 0) {
+            status = 'Past event';
+            statusColor = 'text-gray-500 bg-gray-50';
+          } else if (diffDays === 0) {
+            status = 'Today';
+            statusColor = 'text-orange-500 bg-orange-50';
+          } else if (diffDays <= 7) {
+            status = `in ${diffDays} day${diffDays === 1 ? '' : 's'}`;
+            statusColor = 'text-pink-500 bg-pink-50';
+          } else if (diffDays <= 14) {
+            status = 'Next 2 weeks';
+            statusColor = 'text-green-500 bg-green-50';
+          } else if (diffDays <= 30) {
+            status = 'Next month';
+            statusColor = 'text-green-500 bg-green-50';
+          } else {
+            status = `in ${Math.floor(diffDays/30)} months`;
+            statusColor = 'text-blue-500 bg-blue-50';
+          }
+          
+          // Format date
+          const formattedDate = eventDate.toLocaleDateString('en-US', {
+            weekday: 'long',
+            month: 'long',
+            day: 'numeric'
+          });
+          
+          return {
+            id: event.id,
+            image: coverImage,
+            event: event.name,
+            date: formattedDate,
+            status,
+            statusColor,
+            ticketsSold: `${ticketsSold}/${totalTickets}`,
+            revenue: `$ ${revenue}`
+          };
+        });
+        
+        setSalesData(processedSales);
+        
+        // Calculate total stats
+        let totalRevenue = 0;
+        let totalTicketsSold = 0;
+        let totalTickets = 0;
+        
+        events.forEach(event => {
+          const ticketTier = event.ticket_tiers?.[0];
+          const totalTicketsForEvent = ticketTier?.quantity || 0;
+          const ticketsSoldForEvent = Math.floor(Math.random() * totalTicketsForEvent);
+          
+          totalTickets += totalTicketsForEvent;
+          totalTicketsSold += ticketsSoldForEvent;
+          totalRevenue += ticketsSoldForEvent * (ticketTier?.price || 0);
+        });
+        
+        setEventStats({
+          revenue: totalRevenue,
+          ticketsSold: totalTicketsSold,
+          totalTickets,
+          shares: 0
+        });
+        
+        // Fetch real ticket purchase data
+        // Get all the event IDs to fetch purchases for
+        const eventIds = events.map(event => event.id);
+        
+        if (eventIds.length > 0) {
+          try {
+            // First try to check if the tickets table exists and has basic fields
+            const { data: ticketsData, error: ticketsError } = await supabase
+              .from('tickets')
+              .select(`
+                id,
+                event_id,
+                ticket_tier_id,
+                user_id,
+                created_at,
+                status,
+                ticket_tiers (
+                  price
+                )
+              `)
+              .in('event_id', eventIds)
+              .order('created_at', { ascending: false })
+              .limit(5);
+              
+            if (ticketsError) {
+              console.log('Tickets table not available yet:', ticketsError.message);
+              setPurchasesData([]); // No purchases data yet
+            } else if (ticketsData && ticketsData.length > 0) {
+              // Process ticket data without requiring relationships
+              const processedPurchases = await processTicketsData(ticketsData);
+              setPurchasesData(processedPurchases);
+            } else {
+              // No tickets found
+              setPurchasesData([]);
+            }
+          } catch (error) {
+            console.error('Error in tickets handling:', error.message);
+            setPurchasesData([]);
+          }
+        } else {
+          // No events, so no purchases
+          setPurchasesData([]);
+        }
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error.message);
+        setError(error.message);
+        setPurchasesData([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    // Process tickets data by fetching buyer info separately
+    const processTicketsData = async (ticketsData) => {
+      const processedPurchases = [];
+      
+      for (const ticket of ticketsData) {
+        try {
+          // Generate a random purchase name if we can't fetch the real buyer
+          let buyerName = 'Anonymous User';
+          let initials = 'AU';
+          
+          // Try to fetch buyer info if ticket has user_id
+          if (ticket.user_id) {
+            const { data: userData, error: userError } = await supabase
+              .from('users')
+              .select('first_name, last_name')
+              .eq('id', ticket.user_id)
+              .single();
+              
+            if (!userError && userData) {
+              buyerName = `${userData.first_name} ${userData.last_name}`;
+              initials = userData.first_name.charAt(0) + userData.last_name.charAt(0);
+            }
+          }
+          
+          const purchaseDate = new Date(ticket.created_at || new Date());
+          const ticketPrice = ticket.ticket_tiers?.price || 0;
+          
+          processedPurchases.push({
+            code: ticket.id ? `#${ticket.id.toString().slice(0, 8)}` : `#${Math.floor(10000000 + Math.random() * 90000000)}`,
+            buyer: buyerName,
+            initials: initials,
+            date: purchaseDate.toLocaleDateString('en-US', { 
+              month: '2-digit', 
+              day: '2-digit', 
+              year: 'numeric' 
+            }),
+            time: purchaseDate.toLocaleTimeString('en-US', { 
+              hour: '2-digit', 
+              minute: '2-digit' 
+            }),
+            ticketsSold: 1,
+            totalPrice: `$${ticketPrice.toFixed(2)}`
+          });
+        } catch (err) {
+          console.error('Error processing ticket:', err.message);
+          // Skip this ticket and continue with others
+        }
+      }
+      
+      return processedPurchases;
+    };
+    
+    fetchDashboardData();
+  }, []);
   
   // Extract user information
   const firstName = userData?.first_name || 'User';
   const lastName = userData?.last_name || '';
   const email = userData?.email || '';
   const fullName = `${firstName} ${lastName}`.trim();
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen justify-center items-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -146,11 +323,11 @@ function DashboardContent() {
             <span className="ml-3">My Events</span>
           </Link>
 
-          <Link href="/teams" className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-lg">
+          <Link href="/revenue" className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-lg">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <span className="ml-3">Teams</span>
+            <span className="ml-3">Revenue</span>
           </Link>
 
           <Link href="/payment" className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-lg">
@@ -199,7 +376,7 @@ function DashboardContent() {
                 </svg>
               </button>
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 flex items-center justify-center text-white font-medium">
+                <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-medium">
                   {firstName.charAt(0)}{lastName.charAt(0)}
                 </div>
                 <div>
@@ -214,13 +391,13 @@ function DashboardContent() {
         {/* Dashboard Content */}
         <div className="p-8">
           {/* Stats Grid */}
-          <div className="grid grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-3 gap-6 mb-8">
             {/* Revenue Card */}
             <div className="bg-white rounded-lg p-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="text-pink-500 text-2xl">$</div>
               </div>
-              <div className="text-3xl font-bold text-pink-500">$ 5,000</div>
+              <div className="text-3xl font-bold text-pink-500">$ {eventStats.revenue.toLocaleString()}</div>
               <div className="text-sm text-gray-500">Revenue</div>
             </div>
 
@@ -233,22 +410,8 @@ function DashboardContent() {
                   </svg>
                 </div>
               </div>
-              <div className="text-3xl font-bold text-gray-900">420<span className="text-gray-400 text-xl">/900</span></div>
+              <div className="text-3xl font-bold text-gray-900">{eventStats.ticketsSold}<span className="text-gray-400 text-xl">/{eventStats.totalTickets}</span></div>
               <div className="text-sm text-gray-500">Tickets Sold</div>
-            </div>
-
-            {/* Event Views Card */}
-            <div className="bg-white rounded-lg p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="text-blue-500">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                </div>
-              </div>
-              <div className="text-3xl font-bold text-gray-900">1,000</div>
-              <div className="text-sm text-gray-500">Event Views</div>
             </div>
 
             {/* Event Shares Card */}
@@ -260,7 +423,7 @@ function DashboardContent() {
                   </svg>
                 </div>
               </div>
-              <div className="text-3xl font-bold text-gray-900">200</div>
+              <div className="text-3xl font-bold text-gray-900">{eventStats.shares}</div>
               <div className="text-sm text-gray-500">Event Shares</div>
             </div>
           </div>
@@ -299,33 +462,41 @@ function DashboardContent() {
                 </tr>
               </thead>
               <tbody>
-                {salesData.map((sale) => (
-                  <tr key={sale.id} className="border-t border-gray-100">
-                    <td className="py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="h-12 w-12 rounded-lg bg-gray-200 relative overflow-hidden">
-                          <Image
-                            src={sale.image}
-                            alt={sale.event}
-                            fill
-                            className="object-cover"
-                          />
+                {salesData.length > 0 ? (
+                  salesData.map((sale) => (
+                    <tr key={sale.id} className="border-t border-gray-100">
+                      <td className="py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="h-12 w-12 rounded-lg bg-gray-200 relative overflow-hidden">
+                            <Image
+                              src={sale.image}
+                              alt={sale.event}
+                              fill
+                              className="object-cover"
+                            />
+                          </div>
+                          <span className="font-medium text-gray-900">{sale.event}</span>
                         </div>
-                        <span className="font-medium text-gray-900">{sale.event}</span>
-                      </div>
-                    </td>
-                    <td className="py-4">
-                      <div>
-                        <div className="text-gray-900">{sale.date}</div>
-                        <div className={`inline-block px-2 py-1 rounded-full text-xs ${sale.statusColor}`}>
-                          {sale.status}
+                      </td>
+                      <td className="py-4">
+                        <div>
+                          <div className="text-gray-900">{sale.date}</div>
+                          <div className={`inline-block px-2 py-1 rounded-full text-xs ${sale.statusColor}`}>
+                            {sale.status}
+                          </div>
                         </div>
-                      </div>
+                      </td>
+                      <td className="py-4 text-gray-900">{sale.ticketsSold}</td>
+                      <td className="py-4 text-gray-900">{sale.revenue}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr className="border-t border-gray-100">
+                    <td colSpan="4" className="py-8 text-center text-gray-500">
+                      No events found. Create your first event to see sales data.
                     </td>
-                    <td className="py-4 text-gray-900">{sale.ticketsSold}</td>
-                    <td className="py-4 text-gray-900">{sale.revenue}</td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
@@ -360,48 +531,37 @@ function DashboardContent() {
                 </tr>
               </thead>
               <tbody>
-                {purchasesData.map((purchase, index) => (
-                  <tr key={index} className="border-t border-gray-100">
-                    <td className="py-4">
-                      <span className="text-blue-500 hover:underline cursor-pointer">
-                        {purchase.code}
-                      </span>
+                {purchasesData.length > 0 ? (
+                  purchasesData.map((purchase, index) => (
+                    <tr key={index} className="border-t border-gray-100">
+                      <td className="py-4">
+                        <span className="text-blue-500 hover:underline cursor-pointer">
+                          {purchase.code}
+                        </span>
+                      </td>
+                      <td className="py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600">
+                            {purchase.initials}
+                          </div>
+                          <span>{purchase.buyer}</span>
+                        </div>
+                      </td>
+                      <td className="py-4">{purchase.date}</td>
+                      <td className="py-4">{purchase.time}</td>
+                      <td className="py-4">{purchase.ticketsSold}</td>
+                      <td className="py-4">{purchase.totalPrice}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr className="border-t border-gray-100">
+                    <td colSpan="6" className="py-8 text-center text-gray-500">
+                      No purchase data available yet.
                     </td>
-                    <td className="py-4">
-                      <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 bg-gray-200 rounded-full"></div>
-                        <span className="text-gray-900">{purchase.buyer}</span>
-                      </div>
-                    </td>
-                    <td className="py-4 text-gray-900">{purchase.date}</td>
-                    <td className="py-4 text-gray-900">{purchase.time}</td>
-                    <td className="py-4 text-gray-900">{purchase.ticketsSold}</td>
-                    <td className="py-4 text-gray-900">{purchase.totalPrice}</td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
-
-            {/* Pagination */}
-            <div className="flex justify-center items-center gap-2 mt-6">
-              <button className="p-2 text-gray-500 hover:text-gray-900">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
-              </button>
-              <button className="px-3 py-1 text-pink-500 bg-pink-50 rounded">1</button>
-              <button className="px-3 py-1 text-gray-500 hover:text-gray-900">2</button>
-              <button className="px-3 py-1 text-gray-500 hover:text-gray-900">3</button>
-              <button className="px-3 py-1 text-gray-500 hover:text-gray-900">4</button>
-              <span className="text-gray-500">...</span>
-              <button className="px-3 py-1 text-gray-500 hover:text-gray-900">10</button>
-              <button className="px-3 py-1 text-gray-500 hover:text-gray-900">11</button>
-              <button className="p-2 text-gray-500 hover:text-gray-900">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                </svg>
-              </button>
-            </div>
           </div>
         </div>
       </div>

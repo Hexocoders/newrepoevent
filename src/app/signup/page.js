@@ -50,23 +50,10 @@ export default function Signup() {
             } else {
               firstName = user.email.split('@')[0];
             }
-            
-            // Update the user metadata in Supabase Auth
-            const { error: updateError } = await supabase.auth.updateUser({
-              data: {
-                first_name: firstName,
-                last_name: lastName
-              }
-            });
 
-            if (updateError) {
-              console.error('Error updating user metadata:', updateError);
-              // Continue anyway
-            }
-
-            // Check if user already exists in our custom table
+            // Check if user already exists in users table
             const { data: existingUser, error: queryError } = await supabase
-              .from('user')
+              .from('users')
               .select('*')
               .eq('email', user.email)
               .single();
@@ -77,16 +64,17 @@ export default function Signup() {
             }
               
             if (!existingUser) {
-              console.log('Creating new user in custom table with email:', user.email);
+              console.log('Creating new user in users table with email:', user.email);
               
-              // Create user in our custom table
+              // Create user in our users table
               const { data: newUser, error: insertError } = await supabase
-                .from('user')
+                .from('users')
                 .insert([{
                   email: user.email,
                   first_name: firstName,
                   last_name: lastName,
-                  password: 'GOOGLE_AUTH'
+                  password: 'GOOGLE_AUTH', // Special password for Google Auth users
+                  is_google_user: true
                 }])
                 .select();
               
@@ -98,13 +86,27 @@ export default function Signup() {
               
               if (newUser && newUser.length > 0) {
                 // Store user data in localStorage
-                localStorage.setItem('user', JSON.stringify(newUser[0]));
-                console.log('Successfully created user in custom table with email:', user.email);
+                const sessionUser = {
+                  id: newUser[0].id,
+                  email: newUser[0].email,
+                  first_name: newUser[0].first_name,
+                  last_name: newUser[0].last_name,
+                  created_at: newUser[0].created_at
+                };
+                localStorage.setItem('user', JSON.stringify(sessionUser));
+                console.log('Successfully created user in users table');
               }
             } else {
               // User exists, store in localStorage
-              localStorage.setItem('user', JSON.stringify(existingUser));
-              console.log('User already exists in custom table with email:', user.email);
+              const sessionUser = {
+                id: existingUser.id,
+                email: existingUser.email,
+                first_name: existingUser.first_name,
+                last_name: existingUser.last_name,
+                created_at: existingUser.created_at
+              };
+              localStorage.setItem('user', JSON.stringify(sessionUser));
+              console.log('User already exists in users table');
             }
 
             // Redirect to onboarding
@@ -135,45 +137,94 @@ export default function Signup() {
       setError('First name and last name are required');
       return;
     }
+
+    if (!email || !password) {
+      setError('Email and password are required');
+      return;
+    }
     
     try {
       setError(null);
       setLoading(true);
-      
-      // Create the user in our custom table only
-      const { data: userData, error: userError } = await supabase
-        .from('user')
-        .insert([
-          {
-            email,
-            first_name: firstName,
-            last_name: lastName,
-            password
-          }
-        ])
+
+      // Check if email already exists
+      const { data: existingUser, error: checkError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', email.toLowerCase().trim())
+        .single();
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('Error checking existing user:', checkError);
+        throw new Error('Error checking user existence. Please try again.');
+      }
+
+      if (existingUser) {
+        throw new Error('Email already registered. Please sign in instead.');
+      }
+
+      // Prepare user data
+      const newUser = {
+        email: email.toLowerCase().trim(),
+        password: password,
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        is_google_user: false
+      };
+
+      console.log('Attempting to create user with data:', {
+        ...newUser,
+        password: '[REDACTED]'
+      });
+
+      // Create the user in users table
+      const { data, error: insertError } = await supabase
+        .from('users')
+        .insert([newUser])
         .select();
-      
-      if (userError) {
-        console.error('User table insert error:', userError);
-        throw userError;
+
+      if (insertError) {
+        console.error('Detailed insert error:', {
+          message: insertError.message,
+          details: insertError.details,
+          hint: insertError.hint,
+          code: insertError.code
+        });
+        throw new Error(insertError.message || 'Failed to create account. Please try again.');
       }
-      
-      if (!userData || userData.length === 0) {
-        throw new Error('Failed to create user profile');
+
+      if (!data || data.length === 0) {
+        console.error('No data returned after insert');
+        throw new Error('Failed to create user profile - no data returned');
       }
-      
-      console.log('Successfully created user in custom table');
-      
-      // Skip Supabase Auth signup since it's causing database errors
-      // We'll just use our custom user table for authentication
-      
+
+      const userData = data[0];
+      console.log('User created successfully:', {
+        id: userData.id,
+        email: userData.email,
+        first_name: userData.first_name,
+        last_name: userData.last_name
+      });
+
       // Store user data in localStorage
-      localStorage.setItem('user', JSON.stringify(userData[0]));
+      const sessionUser = {
+        id: userData.id,
+        email: userData.email,
+        first_name: userData.first_name,
+        last_name: userData.last_name,
+        created_at: userData.created_at
+      };
+      localStorage.setItem('user', JSON.stringify(sessionUser));
       
       // Redirect to onboarding
       router.push('/onboarding');
     } catch (error) {
-      console.error('Signup error:', error);
+      console.error('Signup error details:', {
+        message: error.message,
+        details: error?.details,
+        hint: error?.hint,
+        code: error?.code
+      });
       setError(error.message || 'Failed to sign up. Please try again.');
     } finally {
       setLoading(false);

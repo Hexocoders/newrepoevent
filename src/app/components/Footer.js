@@ -1,13 +1,22 @@
 export default function Footer() {
   return (
-    <footer className="bg-gradient-to-r from-gray-900 to-purple-900 text-white pt-16 pb-8 relative overflow-hidden w-full">
+    <footer className="bg-gradient-to-r from-gray-900 to-purple-900 text-white pt-16 pb-8 relative overflow-hidden w-full z-10">
       {/* Background Pattern */}
       <div className="absolute inset-0 bg-[url('/pattern.png')] opacity-5 mix-blend-overlay"></div>
       
-      {/* Curved Top Edge - Without White Background */}
-      <div className="absolute top-0 left-0 right-0">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320" className="absolute -top-0.5 left-0 w-full translate-y-16">
-          <path fill="currentColor" className="text-gray-900" fillOpacity="1" d="M0,96L48,112C96,128,192,160,288,160C384,160,480,128,576,122.7C672,117,768,139,864,149.3C960,160,1056,160,1152,138.7C1248,117,1344,75,1392,53.3L1440,32L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
+      {/* Curved Top Edge - Fixed positioning */}
+      <div className="absolute top-0 left-0 right-0 w-full overflow-hidden">
+        <svg 
+          xmlns="http://www.w3.org/2000/svg" 
+          viewBox="0 0 1440 320" 
+          className="absolute -top-1 left-0 w-full"
+          preserveAspectRatio="none"
+          style={{ transform: 'rotateX(180deg)' }}
+        >
+          <path 
+            fill="#ffffff" 
+            d="M0,96L48,112C96,128,192,160,288,160C384,160,480,128,576,122.7C672,117,768,139,864,149.3C960,160,1056,160,1152,138.7C1248,117,1344,75,1392,53.3L1440,32L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z">
+          </path>
         </svg>
       </div>
       
@@ -16,7 +25,13 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-12 gap-10 px-4 md:px-8">
           {/* Brand Column */}
           <div className="md:col-span-4 space-y-6">
-            <h3 className="font-['Great_Vibes'] text-4xl bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">Event-ip</h3>
+            <div className="relative w-14 h-14">
+              <img 
+                src="/logo.png" 
+                alt="IP Event" 
+                className="object-contain w-14 h-14"
+              />
+            </div>
             <p className="text-gray-300 max-w-md">Discover and experience the best events happening around you. Connect with like-minded people and create unforgettable memories.</p>
             <div className="flex space-x-4 pt-4">
               <a href="#" className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-pink-500 transition-colors duration-300">
@@ -147,7 +162,7 @@ export default function Footer() {
               <option>Spanish</option>
             </select>
             <div className="text-gray-400 text-sm">
-              © {new Date().getFullYear()} Event-ip. All rights reserved.
+              © {new Date().getFullYear()} IP Event. All rights reserved.
             </div>
           </div>
           <div className="flex flex-wrap gap-4 text-sm text-gray-400">

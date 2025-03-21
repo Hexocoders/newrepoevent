@@ -85,6 +85,9 @@ function MyEventsContent() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [eventToDelete, setEventToDelete] = useState(null);
 
   // Get user details from metadata
   const firstName = user?.user_metadata?.first_name || '';
@@ -206,6 +209,49 @@ function MyEventsContent() {
     }
   };
 
+  // Add delete event handler
+  const handleDeleteEvent = async (eventId) => {
+    try {
+      // First delete related records
+      await supabase
+        .from('event_images')
+        .delete()
+        .eq('event_id', eventId);
+
+      await supabase
+        .from('ticket_tiers')
+        .delete()
+        .eq('event_id', eventId);
+
+      // Then delete the event
+      const { error } = await supabase
+        .from('events')
+        .delete()
+        .eq('id', eventId);
+
+      if (error) throw error;
+
+      // Update local state
+      setEvents(events.filter(event => event.id !== eventId));
+      setSuccessMessage('Event deleted successfully');
+      setShowSuccessMessage(true);
+      setShowDeleteModal(false);
+      
+      // Hide success message after 5 seconds
+      setTimeout(() => {
+        setShowSuccessMessage(false);
+      }, 5000);
+    } catch (error) {
+      console.error('Error deleting event:', error.message);
+      alert('Error deleting event. Please try again.');
+    }
+  };
+
+  // Add edit event handler
+  const handleEditEvent = (eventId) => {
+    router.push(`/edit-event/${eventId}`);
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -248,7 +294,7 @@ function MyEventsContent() {
                 </svg>
               </button>
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-pink-500 flex items-center justify-center text-white font-medium">
+                <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-medium">
                   {initials}
                 </div>
                 <div>
@@ -265,7 +311,7 @@ function MyEventsContent() {
           {showSuccessMessage && (
             <div className="mb-6 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative" role="alert">
               <strong className="font-bold">Success! </strong>
-              <span className="block sm:inline">Your event has been published successfully.</span>
+              <span className="block sm:inline">{successMessage}</span>
               <button 
                 className="absolute top-0 bottom-0 right-0 px-4 py-3"
                 onClick={() => setShowSuccessMessage(false)}
@@ -366,9 +412,45 @@ function MyEventsContent() {
                   <div className="p-6">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg font-medium text-gray-900">{event.title}</h3>
-                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(event.status)}`}>
-                        {event.status}
-                      </span>
+                      <div className="relative">
+                        <button
+                          className="text-gray-400 hover:text-gray-600 focus:outline-none"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const menu = e.currentTarget.nextElementSibling;
+                            menu.classList.toggle('hidden');
+                          }}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                          </svg>
+                        </button>
+                        <div className="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border border-gray-200">
+                          <div className="py-1">
+                            <button
+                              onClick={() => handleEditEvent(event.id)}
+                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                              Edit Event
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEventToDelete(event);
+                                setShowDeleteModal(true);
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 flex items-center"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                              Delete Event
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <div className="flex items-center text-sm text-gray-500">
@@ -397,13 +479,6 @@ function MyEventsContent() {
                         Revenue: {event.revenue}
                       </div>
                     </div>
-                    <div className="mt-6 flex justify-end">
-                      <button className="text-gray-400 hover:text-gray-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                        </svg>
-                      </button>
-                    </div>
                   </div>
                 </div>
               ))}
@@ -411,6 +486,32 @@ function MyEventsContent() {
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Delete Event</h3>
+            <p className="text-gray-500 mb-4">
+              Are you sure you want to delete "{eventToDelete?.title}"? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-4">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2 text-gray-500 hover:text-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteEvent(eventToDelete.id)}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -19,29 +19,54 @@ export default function SignIn() {
   const handleSignIn = async (e) => {
     e.preventDefault();
     
+    if (!email || !password) {
+      setError('Email and password are required');
+      return;
+    }
+
     try {
       setError(null);
       setLoading(true);
       
-      // Check credentials against our custom user table
-      const { data: users, error: queryError } = await supabase
-        .from('user')
+      console.log('Checking credentials...');
+      
+      // Check credentials against users table
+      const { data: user, error: queryError } = await supabase
+        .from('users')
         .select('*')
-        .eq('email', email)
-        .eq('password', password)
+        .eq('email', email.toLowerCase().trim())
         .single();
       
       if (queryError) {
-        console.error('Login error:', queryError);
+        console.error('Login query error:', queryError);
         throw new Error('Invalid email or password');
       }
 
-      if (!users) {
+      if (!user) {
         throw new Error('Invalid email or password');
       }
+
+      // Verify password (in a real app, you should use proper password hashing)
+      if (user.password !== password) {
+        throw new Error('Invalid email or password');
+      }
+
+      console.log('Login successful for user:', user.email);
 
       // Store user data in localStorage for session management
-      localStorage.setItem('user', JSON.stringify(users));
+      const sessionUser = {
+        id: user.id,
+        email: user.email,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        created_at: user.created_at
+      };
+      
+      localStorage.setItem('user', JSON.stringify(sessionUser));
+      
+      if (rememberMe) {
+        localStorage.setItem('remember_me', 'true');
+      }
       
       console.log('Sign-in successful, redirecting to dashboard...');
       
@@ -51,7 +76,7 @@ export default function SignIn() {
       }, 100);
     } catch (error) {
       console.error('Sign-in error:', error);
-      setError(error.message);
+      setError(error.message || 'Failed to sign in. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -80,9 +105,9 @@ export default function SignIn() {
           console.log('Processing Google OAuth user for signin');
           
           try {
-            // Check if user exists in our custom table
+            // Check if user exists in our users table
             const { data: existingUser, error: queryError } = await supabase
-              .from('user')
+              .from('users')
               .select('*')
               .eq('email', user.email)
               .single();
@@ -99,7 +124,15 @@ export default function SignIn() {
             }
             
             // Store user data in localStorage
-            localStorage.setItem('user', JSON.stringify(existingUser));
+            const sessionUser = {
+              id: existingUser.id,
+              email: existingUser.email,
+              first_name: existingUser.first_name,
+              last_name: existingUser.last_name,
+              created_at: existingUser.created_at
+            };
+            
+            localStorage.setItem('user', JSON.stringify(sessionUser));
             console.log('Google sign-in successful, redirecting...');
             
             // Use a slight delay to ensure localStorage is set before redirect

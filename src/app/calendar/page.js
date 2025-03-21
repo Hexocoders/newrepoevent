@@ -129,7 +129,9 @@ function CalendarContent() {
     const fetchEvents = async () => {
       setIsLoading(true);
       try {
-        // Fetch all published events
+        if (!user) return;
+
+        // Fetch events created by the current user
         const { data: eventsData, error: eventsError } = await supabase
           .from('events')
           .select(`
@@ -142,9 +144,10 @@ function CalendarContent() {
             city,
             state,
             status,
-            description
+            description,
+            user_id
           `)
-          .in('status', ['published', 'scheduled'])
+          .eq('user_id', user.id)
           .order('event_date', { ascending: true });
           
         if (eventsError) throw eventsError;
@@ -173,7 +176,8 @@ function CalendarContent() {
             color: categoryStyle.bg,
             dotColor: categoryStyle.dot,
             location: event.city && event.state ? `${event.city}, ${event.state}` : (event.city || event.state || ''),
-            description: event.description || 'No description available'
+            description: event.description || 'No description available',
+            status: event.status
           };
         });
         
@@ -188,7 +192,7 @@ function CalendarContent() {
     };
     
     fetchEvents();
-  }, []);
+  }, [user]);
 
   // Get calendar days
   const getDaysInMonth = (date) => {
@@ -275,7 +279,7 @@ function CalendarContent() {
                 </span>
               </button>
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 flex items-center justify-center text-white font-medium shadow-md">
+                <div className="w-9 h-9 rounded-full bg-blue-500 flex items-center justify-center text-white font-medium shadow-md">
                   {initials}
                 </div>
                 <div>

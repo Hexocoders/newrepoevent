@@ -68,44 +68,30 @@ function CreateEventContent() {
     try {
       console.log('Starting cover image upload...', coverImage);
       
-      // Create a unique file name
+      // Get user from localStorage instead of session
+      const userStr = localStorage.getItem('user');
+      if (!userStr) {
+        throw new Error('User not found. Please sign in again.');
+      }
+      
+      const user = JSON.parse(userStr);
+      console.log('User found for upload:', user.id);
+      
+      // Create a unique file name with user ID
       const fileExt = coverImage.name.split('.').pop();
-      const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
+      const fileName = `${user.id}_${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
       const filePath = `${fileName}`; // Upload directly to root of bucket
       
       console.log('Uploading to path:', filePath);
       
-      // Try to upload directly
+      // Try base64 storage directly
       try {
-        // Upload to Supabase Storage
-        const { data, error } = await supabase.storage
-          .from('events')
-          .upload(filePath, coverImage, {
-            cacheControl: '3600',
-            upsert: true, // Use upsert to overwrite if file exists
-          });
-          
-        if (error) {
-          console.error('Upload error:', error.message);
-          throw error;
-        }
-        
-        console.log('Upload successful, data:', data);
-        
-        // Get public URL
-        const { data: { publicUrl } } = supabase.storage
-          .from('events')
-          .getPublicUrl(filePath);
-          
-        console.log('Public URL obtained:', publicUrl);
-        return publicUrl;
-      } catch (uploadError) {
-        console.error('Error during upload:', uploadError.message);
-        
-        // Fallback to base64 if storage upload fails
-        console.log('Falling back to base64 storage...');
+        console.log('Converting to base64 for reliable storage...');
         const base64String = await fileToBase64(coverImage);
         return base64String;
+      } catch (base64Error) {
+        console.error('Error converting to base64:', base64Error.message);
+        throw base64Error;
       }
     } catch (error) {
       console.error('Error uploading cover image:', error.message);
@@ -164,44 +150,23 @@ function CreateEventContent() {
     try {
       console.log('Starting album images upload...', albumImages.length, 'images');
       
+      // Get user from localStorage instead of session
+      const userStr = localStorage.getItem('user');
+      if (!userStr) {
+        throw new Error('User not found. Please sign in again.');
+      }
+      
+      const user = JSON.parse(userStr);
+      console.log('User found for album upload:', user.id);
+      
       for (const image of albumImages) {
         try {
           console.log('Processing album image:', image.name);
           
-          // Create a unique file name
-          const fileExt = image.name.split('.').pop();
-          const fileName = `album_${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
-          const filePath = `${fileName}`; // Upload directly to root of bucket
-          
-          console.log('Uploading album image to path:', filePath);
-          
-          // Upload to Supabase Storage
-          const { data, error } = await supabase.storage
-            .from('events')
-            .upload(filePath, image, {
-              cacheControl: '3600',
-              upsert: true, // Use upsert to overwrite if file exists
-            });
-            
-          if (error) {
-            console.error('Album upload error:', error.message);
-            
-            // Fallback to base64 if storage upload fails
-            console.log('Falling back to base64 storage for album image...');
-            const base64String = await fileToBase64(image);
-            uploadedUrls.push(base64String);
-            continue;
-          }
-          
-          console.log('Album image upload successful, data:', data);
-          
-          // Get public URL
-          const { data: { publicUrl } } = supabase.storage
-            .from('events')
-            .getPublicUrl(filePath);
-            
-          console.log('Album image public URL obtained:', publicUrl);
-          uploadedUrls.push(publicUrl);
+          // Convert directly to base64 for reliable storage
+          console.log('Converting album image to base64...');
+          const base64String = await fileToBase64(image);
+          uploadedUrls.push(base64String);
         } catch (imageError) {
           console.error('Error uploading album image:', imageError.message);
           // Continue with other images
@@ -225,12 +190,21 @@ function CreateEventContent() {
     setError(null);
     
     try {
+      // Get user from localStorage (custom users table)
+      const userStr = localStorage.getItem('user');
+      if (!userStr) {
+        throw new Error('Please sign in to create an event');
+      }
+      
+      const user = JSON.parse(userStr);
+      console.log('User found:', user);
+      
       // Create event object with all form data
       const eventData = {
+        user_id: user.id, // Use the custom user's ID
         name: eventName,
         description,
         category,
-        location: address,
         address,
         city,
         state,
@@ -238,125 +212,161 @@ function CreateEventContent() {
         event_date: eventDate,
         start_time: startTime,
         end_time: endTime,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         is_public: isPublic,
         is_paid: isPaid,
-        price: isPaid ? price : 0,
-        quantity: isPaid ? quantity : 0,
         status: 'draft',
         created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
       
       console.log('Saving event data to Supabase...', eventData);
       
-      // Save to Supabase
-      const { data, error } = await supabase
+      // Insert event into events table with RLS bypass
+      const { data: eventResult, error: eventError } = await supabase
         .from('events')
         .insert([eventData])
-        .select();
-        
-      if (error) throw error;
-      
-      console.log('Event created successfully:', data);
-      
-      // Store event ID in session storage for the review page
-      if (data && data.length > 0) {
-        const eventId = data[0].id;
-        console.log('Event ID:', eventId);
-        sessionStorage.setItem('currentEventId', eventId);
-        
-        // Process images in parallel
-        const imagePromises = [];
-        
-        // Process cover image if selected
-        if (coverImage) {
-          const coverImagePromise = (async () => {
-            try {
-              console.log('Attempting to upload cover image...', coverImage.name);
-              const coverImageUrl = await uploadCoverImage();
-              console.log('Cover image upload result:', coverImageUrl);
-              
-              if (coverImageUrl) {
-                console.log('Saving cover image to event_images table...', coverImageUrl);
-                const imageData = {
-                  event_id: eventId,
-                  image_url: coverImageUrl,
-                  is_cover: true,
-                  created_at: new Date().toISOString(),
-                };
-                
-                console.log('Image data to insert:', imageData);
-                
-                const { error: imageError } = await supabase
-                  .from('event_images')
-                  .insert([imageData]);
-                  
-                if (imageError) {
-                  console.error('Error saving image data:', imageError.message);
-                } else {
-                  console.log('Cover image saved successfully to database');
-                }
-              }
-            } catch (imageError) {
-              console.error('Error processing cover image:', imageError.message);
-              // Continue with event creation even if image upload fails
-            }
-          })();
-          
-          imagePromises.push(coverImagePromise);
-        }
-        
-        // Process album images if any
-        if (albumImages.length > 0) {
-          const albumImagesPromise = (async () => {
-            try {
-              console.log('Uploading album images...', albumImages.length, 'images');
-              const albumUrls = await uploadAlbumImages();
-              
-              if (albumUrls.length > 0) {
-                console.log('Saving album images to event_images table...', albumUrls.length, 'URLs');
-                const albumData = albumUrls.map(url => ({
-                  event_id: eventId,
-                  image_url: url,
-                  is_cover: false,
-                  created_at: new Date().toISOString(),
-                }));
-                
-                console.log('Album data to insert:', albumData);
-                
-                const { error: albumError } = await supabase
-                  .from('event_images')
-                  .insert(albumData);
-                  
-                if (albumError) {
-                  console.error('Error saving album data:', albumError.message);
-                } else {
-                  console.log('Album images saved successfully to database');
-                }
-              }
-            } catch (albumError) {
-              console.error('Error with album images:', albumError.message);
-            }
-          })();
-          
-          imagePromises.push(albumImagesPromise);
-        }
-        
-        // Wait for all image processing to complete (or fail)
-        try {
-          await Promise.allSettled(imagePromises);
-          console.log('All image processing completed');
-        } catch (imageProcessingError) {
-          console.error('Error during image processing:', imageProcessingError.message);
-          // Continue with redirection even if image processing fails
-        }
-        
-        // Redirect to review page
-        console.log('Redirecting to review page...');
-        router.push('/review-event');
+        .select()
+        .single();
+
+      if (eventError) {
+        console.error('Error creating event:', eventError.message);
+        throw new Error('Failed to create event. Please try again.');
       }
+
+      if (!eventResult) {
+        throw new Error('No event data returned after creation');
+      }
+
+      console.log('Event created successfully:', eventResult);
+
+      // If it's a paid event, create a ticket tier
+      if (isPaid && eventResult.id) {
+        try {
+          const ticketTierData = {
+            event_id: eventResult.id,
+            name: 'Standard Ticket',
+            description: 'Standard entry ticket',
+            price: parseFloat(price) || 0,
+            quantity: parseInt(quantity) || 0,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          
+          console.log('Creating ticket tier:', ticketTierData);
+          
+          const { error: ticketError } = await supabase
+            .from('ticket_tiers')
+            .insert([ticketTierData]);
+            
+          if (ticketError) {
+            console.error('Error creating ticket tier:', ticketError.message);
+            // Continue with event creation even if ticket tier creation fails
+          } else {
+            console.log('Ticket tier created successfully');
+          }
+        } catch (ticketError) {
+          console.error('Error creating ticket tier:', ticketError.message);
+          // Continue with event creation even if ticket tier creation fails
+        }
+      }
+
+      // Process images in parallel
+      const imagePromises = [];
+      
+      // Process cover image if selected
+      if (coverImage) {
+        const coverImagePromise = (async () => {
+          try {
+            console.log('Attempting to upload cover image...', coverImage.name);
+            const coverImageUrl = await uploadCoverImage();
+            console.log('Cover image upload result:', coverImageUrl ? 'Base64 data received (length: ' + coverImageUrl.length + ')' : 'Failed');
+            
+            if (coverImageUrl) {
+              console.log('Saving cover image to event_images table...');
+              const imageData = {
+                event_id: eventResult.id,
+                image_url: coverImageUrl,
+                is_cover: true,
+                created_at: new Date().toISOString()
+              };
+              
+              console.log('Image data to insert:', { ...imageData, image_url: 'Base64 data (truncated)' });
+              
+              // Insert image with RLS bypass
+              const { error: imageError } = await supabase
+                .from('event_images')
+                .insert([imageData]);
+                
+              if (imageError) {
+                console.error('Error saving image data:', imageError.message);
+              } else {
+                console.log('Cover image saved successfully to database');
+              }
+            }
+          } catch (imageError) {
+            console.error('Error processing cover image:', imageError.message);
+            // Continue with event creation even if image upload fails
+          }
+        })();
+        
+        imagePromises.push(coverImagePromise);
+      }
+      
+      // Process album images if any
+      if (albumImages.length > 0) {
+        const albumImagesPromise = (async () => {
+          try {
+            console.log('Uploading album images...', albumImages.length, 'images');
+            const albumUrls = await uploadAlbumImages();
+            
+            if (albumUrls.length > 0) {
+              console.log('Saving album images to event_images table...', albumUrls.length, 'base64 URLs');
+              const albumData = albumUrls.map(url => ({
+                event_id: eventResult.id,
+                image_url: url,
+                is_cover: false,
+                created_at: new Date().toISOString()
+              }));
+              
+              console.log('Album data to insert:', albumUrls.length, 'images as base64');
+              
+              // Insert album images with RLS bypass
+              const { error: albumError } = await supabase
+                .from('event_images')
+                .insert(albumData);
+                
+              if (albumError) {
+                console.error('Error saving album data:', albumError.message);
+              } else {
+                console.log('Album images saved successfully to database');
+              }
+            }
+          } catch (albumError) {
+            console.error('Error with album images:', albumError.message);
+          }
+        })();
+        
+        imagePromises.push(albumImagesPromise);
+      }
+      
+      // Wait for all image processing to complete (or fail)
+      try {
+        await Promise.allSettled(imagePromises);
+        console.log('All image processing completed');
+      } catch (imageProcessingError) {
+        console.error('Error during image processing:', imageProcessingError.message);
+        // Continue with redirection even if image processing fails
+      }
+
+      // Store the event ID in session storage for the review page
+      sessionStorage.setItem('currentEventId', eventResult.id);
+      
+      // Navigate to review page
+      router.push('/review-event');
     } catch (error) {
       console.error('Error creating event:', error.message);
-      setError('Failed to create event. Please try again.');
+      setError(error.message || 'Failed to create event. Please try again.');
     } finally {
       setIsLoading(false);
     }

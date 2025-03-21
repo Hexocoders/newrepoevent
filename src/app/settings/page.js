@@ -245,7 +245,7 @@ function SettingsContent() {
                 </svg>
               </button>
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 flex items-center justify-center text-white font-medium shadow-md">
+                <div className="w-9 h-9 rounded-full bg-blue-500 flex items-center justify-center text-white font-medium shadow-md">
                   {profileData.firstName.charAt(0)}{profileData.lastName.charAt(0)}
                 </div>
                 <div>

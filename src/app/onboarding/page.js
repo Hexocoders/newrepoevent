@@ -205,150 +205,50 @@ function OnboardingContent() {
       setLoading(true);
       setError(null);
       
-      // Get user ID from localStorage as fallback
+      // Get user from localStorage
       const storedUserData = localStorage.getItem('user');
-      let userId = null;
-      let userEmail = null;
-      
-      if (storedUserData) {
-        try {
-          const parsedUser = JSON.parse(storedUserData);
-          userId = parsedUser.id;
-          userEmail = parsedUser.email;
-          console.log('Found user ID from localStorage:', userId);
-        } catch (e) {
-          console.error('Error parsing stored user data:', e);
-        }
+      if (!storedUserData) {
+        throw new Error('No user data found. Please sign in again.');
       }
-      
-      // Try to get user from Supabase Auth
-      let authUser = null;
-      try {
-        const { data, error } = await supabase.auth.getUser();
-        if (!error && data && data.user) {
-          authUser = data.user;
-          userId = authUser.id; // Prefer auth user ID if available
-          userEmail = authUser.email;
-          console.log('Found auth user:', authUser.email);
-          
-          // Try to update the user metadata in Supabase Auth
-          try {
-            const { error: updateAuthError } = await supabase.auth.updateUser({
-              data: {
-                first_name: userData.firstName,
-                last_name: userData.lastName,
-                phone_number: userData.phoneNumber,
-                bio: userData.bio,
-                preferences: userData.preferences
-              }
-            });
-            
-            if (updateAuthError) {
-              console.log('Error updating auth user metadata (continuing):', updateAuthError.message);
-            } else {
-              console.log('Successfully updated auth user metadata');
-            }
-          } catch (updateErr) {
-            console.log('Error updating auth user (continuing):', updateErr.message);
-          }
-        } else if (error) {
-          console.log('Auth session missing (continuing with localStorage):', error.message);
-        }
-      } catch (authErr) {
-        console.log('Error getting auth user (continuing with localStorage):', authErr.message);
+
+      const parsedUser = JSON.parse(storedUserData);
+      console.log('Updating user:', parsedUser.id);
+
+      // Update the user in the custom users table with the specific schema
+      const { data: updatedUser, error: updateError } = await supabase
+        .from('users')
+        .update({
+          first_name: userData.firstName.trim(),
+          last_name: userData.lastName.trim(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', parsedUser.id);
+
+      if (updateError) {
+        console.error('Error updating user:', updateError.message);
+        throw new Error('Failed to update your information. Please try again.');
       }
+
+      console.log('Successfully updated user profile');
+
+      // Update localStorage with new data
+      const newUserData = {
+        ...parsedUser,
+        first_name: userData.firstName.trim(),
+        last_name: userData.lastName.trim(),
+        phone_number: userData.phoneNumber.trim(), // Store in localStorage even if not in DB
+        bio: userData.bio.trim(), // Store in localStorage even if not in DB
+        updated_at: new Date().toISOString()
+      };
       
-      // If we don't have a user ID or email, we need to create a temporary user
-      // This allows users to proceed with onboarding even if auth fails
-      if (!userId || !userEmail) {
-        console.log('No user ID found, creating temporary user data');
-        
-        // Generate a temporary ID and use form data for email
-        const tempEmail = `${userData.firstName.toLowerCase()}.${userData.lastName.toLowerCase()}@example.com`;
-        const tempId = 'temp_' + Math.random().toString(36).substring(2, 15);
-        
-        userId = tempId;
-        userEmail = tempEmail;
-        
-        // Store temporary user data in localStorage
-        localStorage.setItem('user', JSON.stringify({
-          id: tempId,
-          email: tempEmail,
-          first_name: userData.firstName,
-          last_name: userData.lastName,
-          phone_number: userData.phoneNumber,
-          bio: userData.bio,
-          preferences: userData.preferences,
-          is_temporary: true
-        }));
-        
-        console.log('Created temporary user:', tempEmail);
-      }
+      localStorage.setItem('user', JSON.stringify(newUserData));
+      console.log('User data updated in localStorage');
       
-      // Try to update the profiles table if we have a real user ID (not temporary)
-      if (userId && !userId.startsWith('temp_')) {
-        try {
-          const { error: updateProfileError } = await supabase
-            .from('profiles')
-            .update({
-              first_name: userData.firstName,
-              last_name: userData.lastName,
-              phone_number: userData.phoneNumber,
-              bio: userData.bio,
-              preferences: userData.preferences
-            })
-            .eq('id', userId);
-          
-          if (updateProfileError) {
-            console.log('Error updating profile (trying insert):', updateProfileError.message);
-            
-            // If update fails, try to insert
-            const { error: insertProfileError } = await supabase
-              .from('profiles')
-              .insert({
-                id: userId,
-                email: userEmail,
-                first_name: userData.firstName,
-                last_name: userData.lastName,
-                phone_number: userData.phoneNumber,
-                bio: userData.bio,
-                preferences: userData.preferences,
-                auth_method: authUser?.app_metadata?.provider || 'email'
-              });
-            
-            if (insertProfileError) {
-              console.error('Error inserting profile:', insertProfileError);
-              console.log('Continuing with localStorage only');
-            } else {
-              console.log('Successfully inserted profile');
-            }
-          } else {
-            console.log('Successfully updated profile');
-          }
-        } catch (profileErr) {
-          console.error('Error updating/inserting profile:', profileErr);
-          console.log('Continuing with localStorage only');
-        }
-      }
-      
-      // Update localStorage with new user data (even if we couldn't update the profile)
-      localStorage.setItem('user', JSON.stringify({
-        id: userId,
-        email: userEmail,
-        first_name: userData.firstName,
-        last_name: userData.lastName,
-        phone_number: userData.phoneNumber,
-        bio: userData.bio,
-        preferences: userData.preferences,
-        is_temporary: userId.startsWith('temp_')
-      }));
-      console.log('User data saved to localStorage');
-      
-      // Move to the next step (interests)
+      // Proceed to the next step
       setStep(2);
-    } catch (err) {
-      console.error('Error in user info submission:', err);
-      setError('An unexpected error occurred. Please try again.');
+    } catch (error) {
+      console.error('Error updating user information:', error.message);
+      setError(error.message || 'Failed to update profile. Please try again.');
     } finally {
       setLoading(false);
     }

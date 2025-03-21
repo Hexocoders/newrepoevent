@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useState, useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
@@ -82,9 +83,17 @@ export default function Navbar() {
           {/* Logo at extreme left with no padding */}
           <div className="pl-4 md:pl-8">
             <Link href="/" className="flex items-center group">
-              <span className="font-['Great_Vibes'] text-3xl md:text-4xl bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent group-hover:scale-105 transition-all duration-300">
-                Event-ip
-              </span>
+              <div className="relative w-14 h-14">
+                <Image 
+                  src="/logo.png" 
+                  alt="IP Event" 
+                  width={56}
+                  height={56}
+                  className="object-contain transition-all duration-300 group-hover:scale-105"
+                  priority
+                  unoptimized
+                />
+              </div>
             </Link>
           </div>
 
@@ -102,7 +111,7 @@ export default function Navbar() {
                   onClick={toggleDropdown}
                   className="flex items-center gap-2 text-gray-700 hover:text-pink-500 focus:outline-none"
                 >
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 flex items-center justify-center text-white font-medium">
+                  <div className="w-9 h-9 rounded-full bg-blue-500 flex items-center justify-center text-white font-medium">
                     {firstName.charAt(0)}{lastName.charAt(0)}
                   </div>
                   <svg 
@@ -208,7 +217,7 @@ export default function Navbar() {
                 {/* User info in mobile menu */}
                 <div className="px-2 py-2">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 flex items-center justify-center text-white font-medium text-sm">
+                    <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-medium text-sm">
                       {firstName.charAt(0)}{lastName.charAt(0)}
                     </div>
                     <p className="text-sm font-medium text-gray-900 truncate">{firstName}</p>
@@ -258,12 +267,12 @@ function NavLink({ href, children, isActive }) {
     <Link 
       href={href} 
       className={`relative py-2 transition-colors duration-300 group ${
-        isActive ? 'text-pink-500 font-medium' : 'text-gray-600 hover:text-pink-500'
+        isActive ? 'text-blue-600 font-medium' : 'text-gray-600 hover:text-blue-600'
       }`}
     >
       {children}
       <span 
-        className={`absolute bottom-0 left-0 w-full h-0.5 bg-gradient-to-r from-pink-500 to-purple-600 transition-transform duration-300 origin-left ${
+        className={`absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 transition-transform duration-300 origin-left ${
           isActive ? 'transform scale-x-100' : 'transform scale-x-0 group-hover:scale-x-100'
         }`}
       ></span>
@@ -277,12 +286,12 @@ function MobileNavLink({ href, onClick, children, isActive }) {
     <Link
       href={href}
       className={`px-2 py-2 rounded-lg transition-colors duration-300 flex items-center ${
-        isActive ? 'text-pink-500 font-medium bg-pink-50' : 'text-gray-600 hover:text-pink-500 hover:bg-gray-50'
+        isActive ? 'text-blue-600 font-medium bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
       }`}
       onClick={onClick}
     >
       <span 
-        className={`w-1.5 h-1.5 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 mr-2 ${
+        className={`w-1.5 h-1.5 rounded-full bg-blue-600 mr-2 ${
           isActive ? 'opacity-100' : 'opacity-0'
         } transition-opacity duration-300`}
       ></span>

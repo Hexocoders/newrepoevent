@@ -5,8 +5,114 @@ import Link from "next/link";
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import { motion } from "framer-motion";
+import { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabaseClient';
 
 export default function Home() {
+  const [featuredEvents, setFeaturedEvents] = useState([]);
+  const [trendingEvents, setTrendingEvents] = useState([]);
+  const [upcomingEvents, setUpcomingEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetchEvents();
+  }, []);
+
+  const fetchEvents = async () => {
+    try {
+      if (!supabase) {
+        console.error('Supabase client not initialized');
+        setError('Database connection error');
+        return;
+      }
+
+      // Fetch all events from the database
+      const { data: events, error } = await supabase
+        .from('events')
+        .select(`
+          id,
+          name,
+          description,
+          event_date,
+          start_time,
+          city,
+          state,
+          event_images (
+            image_url,
+            is_cover
+          ),
+          ticket_tiers (
+            price
+          )
+        `);
+
+      if (error) {
+        console.error('Supabase error details:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        });
+        setError('Error loading events');
+        return;
+      }
+
+      if (!events || events.length === 0) {
+        console.log('No events found in the database');
+        setUpcomingEvents([]);
+        return;
+      }
+
+      console.log(`Successfully fetched ${events.length} events`);
+      
+      // Process events
+      const processedEvents = events.map(event => {
+        // Safely handle missing related data
+        const eventImages = Array.isArray(event.event_images) ? event.event_images : [];
+        const ticketTiers = Array.isArray(event.ticket_tiers) ? event.ticket_tiers : [];
+        
+        const coverImage = eventImages.find(img => img?.is_cover)?.image_url || '/placeholder-event.jpg';
+        
+        let lowestPrice = 0;
+        if (ticketTiers.length > 0) {
+          const prices = ticketTiers.map(tier => tier?.price || 0).filter(price => price > 0);
+          lowestPrice = prices.length > 0 ? Math.min(...prices) : 0;
+        }
+        
+        return {
+          id: event.id,
+          title: event.name || 'Untitled Event',
+          image: coverImage,
+          date: event.event_date ? new Date(event.event_date).toLocaleDateString('en-US', { 
+            weekday: 'long',
+            month: 'long',
+            day: 'numeric'
+          }) : 'Date TBA',
+          time: event.start_time || 'Time TBA',
+          location: `${event.city || ''}${event.state ? `, ${event.state}` : ''}`,
+          price: lowestPrice === 0 ? 'Free' : `₦${lowestPrice.toLocaleString()}`
+        };
+      });
+
+      // Set all events in the state variables
+      setFeaturedEvents(processedEvents.slice(0, 3));
+      setTrendingEvents(processedEvents.slice(0, 2));
+      setUpcomingEvents(processedEvents); // All events go here
+    } catch (error) {
+      console.error('Error fetching events:', error);
+      // Provide more detailed error information
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        setError('Network connection error. Please check your internet connection.');
+      } else {
+        setError(`Error: ${error.message || 'Unknown error occurred'}`);
+      }
+      setUpcomingEvents([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-gray-50">
       <Navbar />
@@ -158,36 +264,9 @@ export default function Home() {
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <FeaturedEventCard
-              id={1}
-              title="Urban Marathon"
-              image="/urban.png"
-              date="Monday, June 06 | 06:00 AM"
-              location="Central Park, New York"
-              price="$20"
-              category="Sports"
-              attendees={1240}
-            />
-            <FeaturedEventCard
-              id={2}
-              title="Melody Mania"
-              image="/melody.png"
-              date="Wednesday, June 21 | 07:00 PM"
-              location="Madison Square Garden, NY"
-              price="$40"
-              category="Music"
-              attendees={3500}
-            />
-            <FeaturedEventCard
-              id={3}
-              title="Rockin' the Stage"
-              image="/stage.png"
-              date="Monday, March 14 | 04:00 PM"
-              location="Brooklyn Music Hall, NY"
-              price="$125"
-              category="Concert"
-              attendees={2100}
-            />
+            {featuredEvents.map(event => (
+              <FeaturedEventCard key={event.id} {...event} />
+            ))}
           </div>
         </div>
 
@@ -221,28 +300,9 @@ export default function Home() {
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <TrendingEventCard
-              id={4}
-              title="Musical Fusion Festival"
-              image="/festival.png"
-              date="Monday, June 06 | 06:00 AM"
-              location="Riverside Park, New York"
-              price="$100"
-              category="Festival"
-              rating={4.8}
-              reviews={120}
-            />
-            <TrendingEventCard
-              id={5}
-              title="Business in the United States"
-              image="/business.png"
-              date="Tuesday, June 7 | 06:00 AM"
-              location="Convention Center, Atlanta"
-              price="$50"
-              category="Conference"
-              rating={4.6}
-              reviews={85}
-            />
+            {trendingEvents.map(event => (
+              <TrendingEventCard key={event.id} {...event} />
+            ))}
           </div>
         </div>
 
@@ -269,31 +329,16 @@ export default function Home() {
             </div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <EventCard
-              id={6}
-              title="Marathon"
-              image="/marathon.png"
-              date="Monday, June 06 | 06:00 AM"
-              location="New York, NY"
-              price="$125"
-            />
-            <EventCard
-              id={7}
-              title="Rock Festival"
-              image="/rock.png"
-              date="Monday, March 21 | 06:00 PM"
-              location="New York, NY"
-              price="$175"
-            />
-            <EventCard
-              id={8}
-              title="Harmony of Melodies Concert"
-              image="/harmony.png"
-              date="Wednesday, June 24 | 07:00 PM"
-              location="New York, NY"
-              price="$150"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {upcomingEvents.length > 0 ? (
+              upcomingEvents.map(event => (
+                <EventCard key={event.id} {...event} />
+              ))
+            ) : (
+              <div className="col-span-full text-center py-10">
+                <p className="text-gray-500">No upcoming events found</p>
+              </div>
+            )}
           </div>
         </div>
 
