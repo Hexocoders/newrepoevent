@@ -17,13 +17,18 @@ export function AuthProvider({ children }) {
   const router = useRouter();
 
   useEffect(() => {
-    // Check for user in localStorage first (faster than waiting for Supabase)
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (e) {
-        console.error('Error parsing stored user:', e);
+    // Only access localStorage in browser environment
+    let storedUser = null;
+    if (typeof window !== 'undefined') {
+      // Check for user in localStorage first (faster than waiting for Supabase)
+      const storedUserStr = localStorage.getItem('user');
+      if (storedUserStr) {
+        try {
+          storedUser = JSON.parse(storedUserStr);
+          setUser(storedUser);
+        } catch (e) {
+          console.error('Error parsing stored user:', e);
+        }
       }
     }
 
@@ -40,7 +45,7 @@ export function AuthProvider({ children }) {
             setUser(userData.user);
             
             // Update localStorage with latest user data if needed
-            if (!storedUser) {
+            if (typeof window !== 'undefined' && !storedUser) {
               // Try to get profile data
               try {
                 const { data: profile } = await supabase
@@ -105,7 +110,9 @@ export function AuthProvider({ children }) {
   const signOut = async () => {
     try {
       await supabase.auth.signOut();
-      localStorage.removeItem('user');
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('user');
+      }
       setUser(null);
       router.push('/signin');
     } catch (error) {
@@ -126,14 +133,16 @@ export function AuthProvider({ children }) {
         setUser(data.user);
         
         // Update localStorage
-        const storedUser = localStorage.getItem('user');
-        if (storedUser) {
-          try {
-            const parsedUser = JSON.parse(storedUser);
-            const updatedUser = { ...parsedUser, ...metadata };
-            localStorage.setItem('user', JSON.stringify(updatedUser));
-          } catch (e) {
-            console.error('Error updating stored user:', e);
+        if (typeof window !== 'undefined') {
+          const storedUser = localStorage.getItem('user');
+          if (storedUser) {
+            try {
+              const parsedUser = JSON.parse(storedUser);
+              const updatedUser = { ...parsedUser, ...metadata };
+              localStorage.setItem('user', JSON.stringify(updatedUser));
+            } catch (e) {
+              console.error('Error updating stored user:', e);
+            }
           }
         }
       }

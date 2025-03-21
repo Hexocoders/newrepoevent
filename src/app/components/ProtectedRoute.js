@@ -11,8 +11,14 @@ export default function ProtectedRoute({ children }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for user in localStorage
+    // Check for user in localStorage - only runs in browser
     const checkAuth = () => {
+      // Ensure we're in a browser environment
+      if (typeof window === 'undefined') {
+        console.log('Server-side rendering, authentication check will be deferred');
+        return;
+      }
+      
       try {
         // Get the current path to check if we're on the onboarding page
         const currentPath = window.location.pathname;
@@ -39,7 +45,12 @@ export default function ProtectedRoute({ children }) {
       }
     };
 
-    checkAuth();
+    // Use a small timeout to ensure this runs after hydration
+    const timer = setTimeout(() => {
+      checkAuth();
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [router]);
 
   // Show loading state while checking authentication

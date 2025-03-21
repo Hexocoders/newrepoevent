@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
-import { supabase } from '../../lib/supabaseClient';
+import { getSupabaseClient } from '../../lib/supabaseClient';
 
 export default function Categories() {
   const [activeCategory, setActiveCategory] = useState('all');
@@ -16,6 +16,46 @@ export default function Categories() {
   const [error, setError] = useState(null);
   const [filteredEvents, setFilteredEvents] = useState([]);
   const [selectedExactCategory, setSelectedExactCategory] = useState(null);
+
+  // Initial featured categories state definition
+  const [featuredCategories, setFeaturedCategories] = useState([
+    {
+      id: 1,
+      name: "Music",
+      slug: "music",
+      icon: "🎵",
+      image: "/music-category.jpg",
+      eventCount: "0",
+      exactCategory: "music"
+    },
+    {
+      id: 2,
+      name: "Sports",
+      slug: "sports",
+      icon: "🏆",
+      image: "/sports-category.jpg",
+      eventCount: "0",
+      exactCategory: "sports"
+    },
+    {
+      id: 3,
+      name: "Food",
+      slug: "food",
+      icon: "🍽️",
+      image: "/food-category.jpg",
+      eventCount: "0",
+      exactCategory: "food"
+    },
+    {
+      id: 4,
+      name: "Technology",
+      slug: "technology",
+      icon: "💻",
+      image: "/tech-category.jpg",
+      eventCount: "0",
+      exactCategory: "technology"
+    }
+  ]);
 
   // Fetch events on component mount
   useEffect(() => {
@@ -32,11 +72,18 @@ export default function Categories() {
   }, [events, activeCategory, selectedExactCategory, searchQuery, filterEvents]);
 
   const fetchEvents = useCallback(async () => {
+    // Ensure we're in a browser environment
+    if (typeof window === 'undefined') {
+      console.log('Server-side rendering, skipping data fetch');
+      return;
+    }
+    
     try {
       console.log('Starting to fetch events from Supabase');
       setLoading(true);
       setError(null);
       
+      const supabase = getSupabaseClient();
       if (!supabase) {
         console.error('Supabase client not initialized');
         setError('Database connection error. Please try again later.');
@@ -238,46 +285,6 @@ export default function Categories() {
     setFilteredEvents(filtered);
   }, [events, activeCategory, selectedExactCategory, searchQuery]);
   
-  // Initial featured categories
-  const [featuredCategories, setFeaturedCategories] = useState([
-    {
-      id: 1,
-      name: "Music",
-      slug: "music",
-      icon: "🎵",
-      image: "/music-category.jpg",
-      eventCount: "0",
-      exactCategory: "music"
-    },
-    {
-      id: 2,
-      name: "Sports",
-      slug: "sports",
-      icon: "🏆",
-      image: "/sports-category.jpg",
-      eventCount: "0",
-      exactCategory: "sports"
-    },
-    {
-      id: 3,
-      name: "Food",
-      slug: "food",
-      icon: "🍽️",
-      image: "/food-category.jpg",
-      eventCount: "0",
-      exactCategory: "food"
-    },
-    {
-      id: 4,
-      name: "Technology",
-      slug: "technology",
-      icon: "💻",
-      image: "/tech-category.jpg",
-      eventCount: "0",
-      exactCategory: "technology"
-    }
-  ]);
-
   // Animation variants
   const containerVariants = {
     hidden: { opacity: 0 },

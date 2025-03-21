@@ -22,16 +22,18 @@ const supabase = createClient(
   }
 );
 
-// Check if we already have user data stored in localStorage
-try {
-  const storedUser = localStorage.getItem('user');
-  if (storedUser) {
-    console.log('User data found in localStorage');
-  } else {
-    console.log('No user data found in localStorage');
+// Only access localStorage in browser environment
+if (typeof window !== 'undefined') {
+  try {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      console.log('User data found in localStorage');
+    } else {
+      console.log('No user data found in localStorage');
+    }
+  } catch (error) {
+    console.error('Error checking localStorage for user data:', error);
   }
-} catch (error) {
-  console.error('Error checking localStorage for user data:', error);
 }
 
 export default supabase; 

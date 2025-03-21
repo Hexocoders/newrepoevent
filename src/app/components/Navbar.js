@@ -18,19 +18,28 @@ export default function Navbar() {
   
   // Get user data from localStorage on component mount (client-side only)
   useEffect(() => {
-    try {
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        setUserData(JSON.parse(storedUser));
+    // Only run in browser environment
+    if (typeof window !== 'undefined') {
+      try {
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          const parsedUser = JSON.parse(storedUser);
+          setUserData(parsedUser);
+        }
+      } catch (error) {
+        console.error('Error reading from localStorage:', error);
       }
-    } catch (error) {
-      console.error('Error reading from localStorage:', error);
     }
   }, []);
   
   // Get user's name from localStorage
-  const firstName = userData?.first_name || 'User';
+  const firstName = userData?.first_name || '';
   const lastName = userData?.last_name || '';
+  const initials = firstName && lastName 
+    ? `${firstName[0]}${lastName[0]}`.toUpperCase() 
+    : firstName 
+      ? firstName[0].toUpperCase() 
+      : '';
   
   useEffect(() => {
     const handleScroll = () => {
@@ -112,7 +121,7 @@ export default function Navbar() {
                   className="flex items-center gap-2 text-gray-700 hover:text-pink-500 focus:outline-none"
                 >
                   <div className="w-9 h-9 rounded-full bg-blue-500 flex items-center justify-center text-white font-medium">
-                    {firstName.charAt(0)}{lastName.charAt(0)}
+                    {initials}
                   </div>
                   <svg 
                     className={`w-4 h-4 transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} 
@@ -218,7 +227,7 @@ export default function Navbar() {
                 <div className="px-2 py-2">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-medium text-sm">
-                      {firstName.charAt(0)}{lastName.charAt(0)}
+                      {initials}
                     </div>
                     <p className="text-sm font-medium text-gray-900 truncate">{firstName}</p>
                   </div>
