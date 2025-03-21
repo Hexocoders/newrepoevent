@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
-import { getSupabaseClient } from '../../lib/supabaseClient';
+import { supabase } from '../../lib/supabaseClient';
 
 export default function Categories() {
   const [activeCategory, setActiveCategory] = useState('all');
@@ -83,7 +83,6 @@ export default function Categories() {
       setLoading(true);
       setError(null);
       
-      const supabase = getSupabaseClient();
       if (!supabase) {
         console.error('Supabase client not initialized');
         setError('Database connection error. Please try again later.');
