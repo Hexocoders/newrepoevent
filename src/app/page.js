@@ -12,8 +12,8 @@ export default function Home() {
   const [featuredEvents, setFeaturedEvents] = useState([]);
   const [trendingEvents, setTrendingEvents] = useState([]);
   const [upcomingEvents, setUpcomingEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState(null);
 
   useEffect(() => {
     fetchEvents();
@@ -23,7 +23,7 @@ export default function Home() {
     try {
       if (!supabase) {
         console.error('Supabase client not initialized');
-        setError('Database connection error');
+        setErrorMessage('Database connection error');
         return;
       }
 
@@ -54,7 +54,7 @@ export default function Home() {
           details: error.details,
           hint: error.hint
         });
-        setError('Error loading events');
+        setErrorMessage('Error loading events');
         return;
       }
 
@@ -103,15 +103,48 @@ export default function Home() {
       console.error('Error fetching events:', error);
       // Provide more detailed error information
       if (error instanceof TypeError && error.message === 'Failed to fetch') {
-        setError('Network connection error. Please check your internet connection.');
+        setErrorMessage('Network connection error. Please check your internet connection.');
       } else {
-        setError(`Error: ${error.message || 'Unknown error occurred'}`);
+        setErrorMessage(`Error: ${error.message || 'Unknown error occurred'}`);
       }
       setUpcomingEvents([]);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
+
+  // If error or no events found, display a message
+  if (errorMessage) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-white to-gray-50">
+        <Navbar />
+        <div className="flex flex-col items-center justify-center p-6 text-center my-12">
+          <h2 className="text-2xl font-semibold text-red-600 mb-4">Error</h2>
+          <p className="text-gray-700 mb-6">{errorMessage}</p>
+          <button 
+            onClick={fetchEvents}
+            className="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800"
+          >
+            Try Again
+          </button>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  // If loading, display a loading spinner
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-white to-gray-50">
+        <Navbar />
+        <div className="flex justify-center items-center h-64 my-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-900"></div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-gray-50">

@@ -194,10 +194,10 @@ function OnboardingContent() {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setUserData({
-      ...userData,
+    setUserData(prevData => ({
+      ...prevData,
       [name]: value
-    });
+    }));
   };
 
   const handleUserInfoSubmit = async () => {
@@ -215,7 +215,7 @@ function OnboardingContent() {
       console.log('Updating user:', parsedUser.id);
 
       // Update the user in the custom users table with the specific schema
-      const { data: updatedUser, error: updateError } = await supabase
+      const { error: updateError } = await supabase
         .from('users')
         .update({
           first_name: userData.firstName.trim(),
