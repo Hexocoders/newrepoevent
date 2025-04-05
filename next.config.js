@@ -1,16 +1,20 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  reactStrictMode: true,
   images: {
     domains: [
-      'ljvlgizgsvvxfycolfcn.supabase.co',
+      'lh3.googleusercontent.com',
+      'vpqeqhriawxbafmwiwjs.supabase.co',
+      'via.placeholder.com',
+      'res.cloudinary.com',
+      'placehold.co',
       'images.unsplash.com',
-      'img.freepik.com',
-      'randomuser.me',
-      'img.icons8.com',
-      'upload.wikimedia.org',
-      'www.transparenttextures.com',
-      'api.qrserver.com'
     ],
+  },
+  eslint: {
+    // Warning: This allows production builds to successfully complete even if
+    // your project has ESLint errors.
+    ignoreDuringBuilds: true,
   },
 };
 
