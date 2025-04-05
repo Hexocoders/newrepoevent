@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import QRCode from 'qrcode.react';
+import { QRCodeSVG } from 'qrcode.react';
 import { supabase } from '../../../lib/supabaseClient';
 
 // This is a client component that displays a private event ticket
@@ -319,10 +319,15 @@ export default function PrivateTicketPage() {
                 
                 {/* Right Column: QR Code */}
                 <div>
-                  <div className="bg-white border border-slate-200 rounded-lg p-4 text-center">
+                  <div className="p-6 text-center border-t border-slate-200">
                     <h2 className="text-lg font-semibold text-slate-800 mb-4">Scan for Entry</h2>
                     <div className="bg-white p-2 rounded-lg inline-block mb-3">
-                      <QRCode value={generateQRData()} size={180} />
+                      <QRCodeSVG 
+                        value={generateQRData()} 
+                        size={180}
+                        level="H"
+                        includeMargin={true}
+                      />
                     </div>
                     <p className="text-sm text-slate-500">Present this QR code at the event entrance</p>
                   </div>
