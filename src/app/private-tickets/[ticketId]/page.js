@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import QRCode from 'qrcode.react';
-import supabase from '../../../lib/supabase';
+import { supabase } from '../../../lib/supabaseClient';
 
 // This is a client component that displays a private event ticket
 export default function PrivateTicketPage() {
