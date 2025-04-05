@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -9,7 +9,8 @@ function getPaystackReceiptUrl(reference) {
   return `https://dashboard.paystack.com/#/transactions/${reference}/receipt`;
 }
 
-export default function PaymentSuccess() {
+// Create a client component that uses the search params
+function PaymentSuccessContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [reference, setReference] = useState(null);
@@ -145,5 +146,35 @@ export default function PaymentSuccess() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Create a fallback UI for the Suspense boundary
+function PaymentSuccessLoading() {
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center">
+        <div className="animate-pulse">
+          <div className="mx-auto w-16 h-16 bg-gray-200 rounded-full mb-4"></div>
+          <div className="h-6 bg-gray-200 rounded w-3/4 mx-auto mb-2"></div>
+          <div className="h-4 bg-gray-200 rounded w-1/2 mx-auto mb-6"></div>
+          
+          <div className="h-20 bg-gray-100 rounded mb-6"></div>
+          
+          <div className="h-12 bg-gray-200 rounded mb-3"></div>
+          <div className="h-12 bg-gray-200 rounded mb-3"></div>
+          <div className="h-4 bg-gray-200 rounded w-1/4 mx-auto"></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Main component with Suspense
+export default function PaymentSuccess() {
+  return (
+    <Suspense fallback={<PaymentSuccessLoading />}>
+      <PaymentSuccessContent />
+    </Suspense>
   );
 } 
