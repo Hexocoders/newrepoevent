@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -67,8 +67,8 @@ function ClientQRCode({ value }) {
   );
 }
 
-// This is a client component that displays a private event ticket
-export default function ViewPrivateTicketPage() {
+// Content component that uses searchParams
+function TicketContent() {
   const searchParams = useSearchParams();
   const ticketId = searchParams.get('id');
   const [ticket, setTicket] = useState(null);
@@ -215,6 +215,7 @@ VERIFICATION: ${ticket.id.substring(0, 6).toUpperCase()}`;
     );
   }
 
+  // Rest of your existing render code for when ticket is available
   const eventData = ticket.event_data;
 
   return (
@@ -266,120 +267,147 @@ VERIFICATION: ${ticket.id.substring(0, 6).toUpperCase()}`;
                         alt={eventData.event_name}
                         width={500}
                         height={280}
-                        className="object-cover w-full"
+                        className="w-full object-cover"
+                        unoptimized={!eventData.cover_image_url.startsWith('/')}
                       />
                     </div>
                   )}
                   
-                  {/* Event Date & Time */}
-                  <div className="border-b border-slate-100 pb-4">
-                    <h2 className="text-lg font-semibold text-slate-800 mb-2">Date & Time</h2>
-                    <div className="flex items-start">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-indigo-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      <div>
-                        <div className="font-medium text-slate-800">
-                          {formatDate(eventData.event_start_date)}
-                          {eventData.event_end_date && eventData.event_end_date !== eventData.event_start_date && (
-                            <> - {formatDate(eventData.event_end_date)}</>
-                          )}
+                  {/* Event Details */}
+                  <div className="space-y-4">
+                    <h2 className="text-xl font-semibold text-slate-800">Event Details</h2>
+                    <div className="space-y-3">
+                      <div className="flex items-start">
+                        <div className="mt-1 flex-shrink-0 text-indigo-500">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
                         </div>
-                        <div className="text-slate-600">
-                          {formatTime(eventData.start_time)} - {formatTime(eventData.end_time)}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Location */}
-                  <div className="border-b border-slate-100 pb-4">
-                    <h2 className="text-lg font-semibold text-slate-800 mb-2">Location</h2>
-                    <div className="flex items-start">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-indigo-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      <div>
-                        <div className="font-medium text-slate-800">{eventData.address || 'Not specified'}</div>
-                        {(eventData.city || eventData.state || eventData.country) && (
-                          <div className="text-slate-600">
-                            {[
-                              eventData.city,
-                              eventData.state,
-                              eventData.country
-                            ].filter(Boolean).join(', ')}
+                        <div className="ml-3">
+                          <div className="text-sm font-medium text-slate-800">Date & Time</div>
+                          <div className="text-sm text-slate-600">
+                            {formatDate(eventData.event_start_date)}
+                            <br />
+                            {formatTime(eventData.start_time)} - {formatTime(eventData.end_time)}
                           </div>
-                        )}
+                        </div>
                       </div>
+                      
+                      <div className="flex items-start">
+                        <div className="mt-1 flex-shrink-0 text-indigo-500">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        </div>
+                        <div className="ml-3">
+                          <div className="text-sm font-medium text-slate-800">Location</div>
+                          <div className="text-sm text-slate-600">
+                            {eventData.address && <div>{eventData.address}</div>}
+                            <div>{[eventData.city, eventData.state, eventData.country].filter(Boolean).join(', ')}</div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {eventData.description && (
+                        <div className="flex items-start">
+                          <div className="mt-1 flex-shrink-0 text-indigo-500">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          </div>
+                          <div className="ml-3">
+                            <div className="text-sm font-medium text-slate-800">Description</div>
+                            <div className="text-sm text-slate-600">
+                              {eventData.description}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                   
-                  {/* Ticket Information */}
-                  <div>
-                    <h2 className="text-lg font-semibold text-slate-800 mb-2">Ticket Information</h2>
-                    <div className="bg-slate-50 rounded-lg p-4 space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-slate-600">Ticket Holder:</span>
-                        <span className="font-medium text-slate-800">{ticket.buyer_name}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-600">Buyer Email:</span>
-                        <span className="font-medium text-slate-800">{ticket.buyer_email}</span>
-                      </div>
-                      {ticket.customer_email && ticket.customer_email !== ticket.buyer_email && (
-                        <div className="flex justify-between">
-                          <span className="text-slate-600">Attendee Email:</span>
-                          <span className="font-medium text-slate-800">{ticket.customer_email}</span>
+                  {/* Ticket Holder Information */}
+                  <div className="space-y-4">
+                    <h2 className="text-xl font-semibold text-slate-800">Ticket Information</h2>
+                    <div className="space-y-3">
+                      <div className="flex items-start">
+                        <div className="mt-1 flex-shrink-0 text-indigo-500">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
                         </div>
-                      )}
-                      {ticket.buyer_phone && (
-                        <div className="flex justify-between">
-                          <span className="text-slate-600">Phone:</span>
-                          <span className="font-medium text-slate-800">{ticket.buyer_phone}</span>
+                        <div className="ml-3">
+                          <div className="text-sm font-medium text-slate-800">Attendee</div>
+                          <div className="text-sm text-slate-600">{ticket.buyer_name}</div>
                         </div>
-                      )}
-                      <div className="flex justify-between">
-                        <span className="text-slate-600">Ticket Code:</span>
-                        <span className="font-medium text-slate-800">{ticket.ticket_code}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-600">Reference:</span>
-                        <span className="font-medium text-slate-800">{ticket.reference}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-600">Status:</span>
-                        <span className={`font-medium ${
-                          ticket.status === 'active' ? 'text-green-600' : 
-                          ticket.status === 'used' ? 'text-orange-600' : 
-                          'text-red-600'
-                        }`}>
-                          {ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-600">Quantity:</span>
-                        <span className="font-medium text-slate-800">{ticket.quantity} ticket(s)</span>
-                      </div>
-                      {ticket.is_paid && (
-                        <div className="flex justify-between">
-                          <span className="text-slate-600">Price:</span>
-                          <span className="font-medium text-slate-800">₦{ticket.price_paid.toFixed(2)} per ticket</span>
+                      
+                      <div className="flex items-start">
+                        <div className="mt-1 flex-shrink-0 text-indigo-500">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
                         </div>
-                      )}
-                      {ticket.is_paid && (
-                        <div className="flex justify-between">
-                          <span className="text-slate-600">Total Amount:</span>
-                          <span className="font-medium text-slate-800">₦{ticket.total_price.toFixed(2)}</span>
+                        <div className="ml-3">
+                          <div className="text-sm font-medium text-slate-800">Email</div>
+                          <div className="text-sm text-slate-600">{ticket.customer_email || ticket.buyer_email}</div>
                         </div>
-                      )}
-                      <div className="flex justify-between">
-                        <span className="text-slate-600">Purchase Date:</span>
-                        <span className="font-medium text-slate-800">{formatDate(ticket.purchase_date)}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-600">Verification Code:</span>
-                        <span className="font-medium text-slate-800">{ticket.id.substring(0, 6).toUpperCase()}</span>
+                      
+                      <div className="flex items-start">
+                        <div className="mt-1 flex-shrink-0 text-indigo-500">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+                          </svg>
+                        </div>
+                        <div className="ml-3">
+                          <div className="text-sm font-medium text-slate-800">Ticket Reference</div>
+                          <div className="text-sm font-mono text-slate-600">{ticket.reference}</div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-start">
+                        <div className="mt-1 flex-shrink-0 text-indigo-500">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                          </svg>
+                        </div>
+                        <div className="ml-3">
+                          <div className="text-sm font-medium text-slate-800">Ticket Code</div>
+                          <div className="text-sm font-mono text-slate-600">{ticket.ticket_code}</div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-start">
+                        <div className="mt-1 flex-shrink-0 text-indigo-500">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                        <div className="ml-3">
+                          <div className="text-sm font-medium text-slate-800">Status</div>
+                          <div className="text-sm text-slate-600">
+                            <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+                              {ticket.status.toUpperCase()}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-start">
+                        <div className="mt-1 flex-shrink-0 text-indigo-500">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                        <div className="ml-3">
+                          <div className="text-sm font-medium text-slate-800">Ticket Type</div>
+                          <div className="text-sm text-slate-600">
+                            {ticket.is_paid ? 'Paid Ticket' : 'Free Ticket'}
+                            {ticket.is_paid && ` (${eventData.price || ticket.price_paid})`}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -395,49 +423,68 @@ VERIFICATION: ${ticket.id.substring(0, 6).toUpperCase()}`;
                 </div>
               </div>
             </div>
-            
-            {/* Ticket Footer */}
-            <div className="bg-slate-50 p-4 text-center border-t border-slate-200">
-              <p className="text-sm text-slate-500">This ticket was issued by Eventips. For any queries, please contact the event organizer.</p>
-            </div>
-          </div>
-          
-          <div className="flex justify-center space-x-4">
-            <button 
-              onClick={() => window.print()} 
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-              </svg>
-              Print Ticket
-            </button>
-            
-            <button 
-              onClick={() => {
-                const mailtoLink = `mailto:?subject=My Ticket for ${eventData.event_name}&body=Hi,%0D%0A%0D%0AHere is my ticket for ${eventData.event_name}.%0D%0A%0D%0ADate: ${formatDate(eventData.event_start_date)}%0D%0ATime: ${formatTime(eventData.start_time)} - ${formatTime(eventData.end_time)}%0D%0ALocation: ${eventData.address || 'Not specified'}%0D%0A%0D%0APlease show this ticket at the entrance.%0D%0A%0D%0AThanks!`;
-                window.location.href = mailtoLink;
-              }}
-              className="px-4 py-2 bg-white text-indigo-600 border border-indigo-600 rounded-lg hover:bg-indigo-50 flex items-center"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-              Email Ticket
-            </button>
           </div>
         </div>
       </main>
-      
-      {/* Footer */}
-      <footer className="bg-white border-t border-slate-200 mt-12 py-8">
-        <div className="container mx-auto px-4">
-          <div className="text-center text-slate-500 text-sm">
-            <p>© {new Date().getFullYear()} Eventips. All rights reserved.</p>
-            <p className="mt-1">This is a private event ticket. Please respect the privacy of the event.</p>
+    </div>
+  );
+}
+
+// Loading placeholder
+function TicketLoadingFallback() {
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 p-6">
+      <div className="max-w-3xl mx-auto">
+        <div className="bg-white rounded-xl shadow-md overflow-hidden">
+          {/* Animated loading header */}
+          <div className="h-20 bg-gradient-to-r from-indigo-400 to-purple-400 animate-pulse"></div>
+          
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="md:col-span-2 space-y-6">
+                {/* Animated loading content */}
+                <div className="h-40 bg-slate-200 rounded-lg animate-pulse"></div>
+                
+                <div className="space-y-4">
+                  <div className="h-6 bg-slate-200 rounded w-1/3 animate-pulse"></div>
+                  <div className="space-y-2">
+                    <div className="h-4 bg-slate-200 rounded animate-pulse"></div>
+                    <div className="h-4 bg-slate-200 rounded animate-pulse"></div>
+                    <div className="h-4 bg-slate-200 rounded animate-pulse"></div>
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  <div className="h-6 bg-slate-200 rounded w-1/3 animate-pulse"></div>
+                  <div className="space-y-2">
+                    <div className="h-4 bg-slate-200 rounded animate-pulse"></div>
+                    <div className="h-4 bg-slate-200 rounded animate-pulse"></div>
+                    <div className="h-4 bg-slate-200 rounded animate-pulse"></div>
+                    <div className="h-4 bg-slate-200 rounded animate-pulse"></div>
+                  </div>
+                </div>
+              </div>
+              
+              <div>
+                <div className="bg-white border border-slate-200 rounded-lg p-4 text-center">
+                  <div className="h-6 bg-slate-200 rounded w-1/2 mx-auto mb-4 animate-pulse"></div>
+                  <div className="w-40 h-40 bg-slate-200 rounded-lg mx-auto mb-3 animate-pulse"></div>
+                  <div className="h-4 bg-slate-200 rounded w-3/4 mx-auto animate-pulse"></div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      </footer>
+      </div>
     </div>
+  );
+}
+
+// Main component with Suspense boundary
+export default function ViewPrivateTicketPage() {
+  return (
+    <Suspense fallback={<TicketLoadingFallback />}>
+      <TicketContent />
+    </Suspense>
   );
 } 
