@@ -81,7 +81,8 @@ export default function Navbar() {
   const navItems = [
     { label: 'Home', href: '/' },
     { label: 'Explore', href: '/explore' },
-    { label: 'My Tickets', href: '/my-tickets' },
+    // Only show My Tickets if user is logged in
+    ...(isLoggedIn ? [{ label: 'My Tickets', href: '/my-tickets' }] : []),
     { label: 'Contact', href: '/contact' },
   ];
 
@@ -149,7 +150,9 @@ export default function Navbar() {
           <div className="hidden md:flex items-center gap-6 pr-4 md:pr-8">
             <NavLink href="/" isActive={pathname === '/'} isScrolled={scrolled}>Home</NavLink>
             <NavLink href="/explore" isActive={pathname === '/explore'} isScrolled={scrolled}>Explore</NavLink>
-            <NavLink href="/my-tickets" isActive={pathname === '/my-tickets'} isScrolled={scrolled}>My Tickets</NavLink>
+            {isLoggedIn && (
+              <NavLink href="/my-tickets" isActive={pathname === '/my-tickets'} isScrolled={scrolled}>My Tickets</NavLink>
+            )}
             <NavLink href="/upcoming-events" isActive={pathname === '/upcoming-events'} isScrolled={scrolled}>Upcoming Events</NavLink>
             <NavLink href="/categories" isActive={pathname === '/categories'} isScrolled={scrolled}>Categories</NavLink>
             <NavLink href="/new-events" isActive={pathname === '/new-events'} isScrolled={scrolled}>New Events</NavLink>
@@ -250,9 +253,11 @@ export default function Navbar() {
             <MobileNavLink href="/explore" isActive={pathname === '/explore'} onClick={() => setIsOpen(false)} isScrolled={scrolled}>
               Explore
             </MobileNavLink>
-            <MobileNavLink href="/my-tickets" isActive={pathname === '/my-tickets'} onClick={() => setIsOpen(false)} isScrolled={scrolled}>
-              My Tickets
-            </MobileNavLink>
+            {isLoggedIn && (
+              <MobileNavLink href="/my-tickets" isActive={pathname === '/my-tickets'} onClick={() => setIsOpen(false)} isScrolled={scrolled}>
+                My Tickets
+              </MobileNavLink>
+            )}
             <MobileNavLink href="/upcoming-events" isActive={pathname === '/upcoming-events'} onClick={() => setIsOpen(false)} isScrolled={scrolled}>
               Upcoming Events
             </MobileNavLink>

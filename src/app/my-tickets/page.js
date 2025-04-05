@@ -17,7 +17,66 @@ export default function MyTickets() {
   const [error, setError] = useState(null);
   const [email, setEmail] = useState('');
   const [searched, setSearched] = useState(false);
+  const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
+  // Check if the user is authenticated
+  useEffect(() => {
+    const checkUser = async () => {
+      setIsLoading(true);
+      
+      try {
+        // Check for user in localStorage
+        const storedUserStr = localStorage.getItem('user');
+        if (storedUserStr) {
+          const storedUser = JSON.parse(storedUserStr);
+          setUser(storedUser);
+          setIsLoading(false);
+          return;
+        }
+        
+        // Alternatively, check directly from the database
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .limit(1);
+          
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          setUser(data[0]);
+          // Store user in localStorage for future access
+          localStorage.setItem('user', JSON.stringify(data[0]));
+        } else {
+          // If not found, redirect to login
+          router.push('/signin');
+        }
+      } catch (error) {
+        console.error('Error checking authentication:', error);
+        router.push('/signin');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    checkUser();
+  }, [router]);
+
+  // If still loading auth state or not authenticated, show loading or redirect
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-amber-600"></div>
+      </div>
+    );
+  }
+  
+  if (!user) {
+    // This shouldn't be visible as the useEffect will redirect,
+    // but just in case there's a delay in the redirect
+    return null;
+  }
+  
   // Function to handle ticket search by email
   const handleSearch = async (e) => {
     e.preventDefault();
