@@ -5,158 +5,214 @@ import Link from "next/link";
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import { motion } from "framer-motion";
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import TicketModal from '../components/TicketModal';
 
-// Error boundary component
-function ErrorBoundary({ children }) {
-  const [hasError, setHasError] = useState(false);
-  
-  useEffect(() => {
-    // Add global error handler
-    const errorHandler = (error) => {
-      console.error('Caught runtime error:', error);
-      setHasError(true);
-    };
-    
-    window.addEventListener('error', errorHandler);
-    return () => window.removeEventListener('error', errorHandler);
-  }, []);
-  
-  if (hasError) {
-    return (
-      <div className="min-h-screen bg-white flex flex-col">
-        <Navbar />
-        <div className="flex-grow flex items-center justify-center p-6">
-          <div className="bg-white p-8 rounded-lg shadow-lg max-w-lg w-full text-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-red-500 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Something went wrong</h2>
-            <p className="text-gray-600 mb-6">We're sorry, but there was an error loading this page. Please try refreshing or come back later.</p>
-            <button 
-              onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Refresh Page
-            </button>
-          </div>
-        </div>
-        <Footer />
-      </div>
-    );
-  }
-  
-  return children;
-}
-
-// Home content component
-function HomeContent() {
+export default function Home() {
   const [featuredEvents, setFeaturedEvents] = useState([]);
   const [trendingEvents, setTrendingEvents] = useState([]);
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState(null);
-  const [isClient, setIsClient] = useState(false);
-  
-  // Mark when we're in client side rendering
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [showTicketModal, setShowTicketModal] = useState(false);
+
   useEffect(() => {
-    setIsClient(true);
+    fetchEvents();
   }, []);
-  
-  // Fetch events only on client-side
-  useEffect(() => {
-    if (isClient) {
-      fetchEvents();
-    }
-  }, [isClient]);
-  
-  const fetchEvents = useCallback(async () => {
-    // Skip server-side execution
-    if (typeof window === 'undefined') return;
-    
+
+  const fetchEvents = async () => {
     try {
-      setIsLoading(true);
-      setErrorMessage(null);
-      
       if (!supabase) {
         console.error('Supabase client not initialized');
-        setErrorMessage('Database connection error. Please try again later.');
-        setIsLoading(false);
+        setErrorMessage('Database connection error');
         return;
       }
-      
-      const { data, error } = await supabase
+
+      // Fetch all events from the database
+      const { data: events, error } = await supabase
         .from('events')
         .select(`
           id,
           name,
           description,
           event_date,
+          start_time,
           city,
           state,
-          event_images (image_url, is_cover),
-          ticket_tiers (price)
-        `)
-        .eq('status', 'published')
-        .limit(6);
-      
+          event_images (
+            image_url,
+            is_cover
+          ),
+          ticket_tiers (
+            id,
+            name,
+            price,
+            quantity,
+            quantity_sold,
+            paid_quantity_sold
+          )
+        `);
+
       if (error) {
-        throw error;
-      }
-      
-      if (!data || !Array.isArray(data)) {
-        setUpcomingEvents([]);
-        setIsLoading(false);
+        console.error('Supabase error details:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        });
+        setErrorMessage('Error loading events');
         return;
       }
+
+      if (!events || events.length === 0) {
+        console.log('No events found in the database');
+        setUpcomingEvents([]);
+        return;
+      }
+
+      console.log(`Successfully fetched ${events.length} events`);
       
-      // Process events data
-      const processedEvents = data.map(event => {
-        // Find cover image
-        const coverImage = event.event_images && Array.isArray(event.event_images) 
-          ? event.event_images.find(img => img.is_cover)?.image_url 
-          : null;
+      // Process events
+      const processedEvents = events.map(event => {
+        // Safely handle missing related data
+        const eventImages = Array.isArray(event.event_images) ? event.event_images : [];
+        const ticketTiers = Array.isArray(event.ticket_tiers) ? event.ticket_tiers : [];
         
-        // Find lowest price
-        let lowestPrice = null;
-        if (event.ticket_tiers && Array.isArray(event.ticket_tiers) && event.ticket_tiers.length > 0) {
-          const prices = event.ticket_tiers
-            .filter(tier => tier.price !== null && !isNaN(tier.price))
-            .map(tier => tier.price);
+        const coverImage = eventImages.find(img => img?.is_cover)?.image_url || '/placeholder-event.jpg';
+        
+        let lowestPrice = 0;
+        let totalTickets = 0;
+        let isSoldOut = false;
+        
+        if (ticketTiers.length > 0) {
+          const prices = ticketTiers.map(tier => tier?.price || 0).filter(price => price > 0);
+          lowestPrice = prices.length > 0 ? Math.min(...prices) : 0;
           
-          if (prices.length > 0) {
-            lowestPrice = Math.min(...prices);
+          if (lowestPrice > 0) {
+            // For paid tickets
+            totalTickets = ticketTiers
+              .filter(tier => tier?.price > 0)
+              .reduce((sum, tier) => sum + (tier?.quantity - (tier?.paid_quantity_sold || 0)), 0);
+            
+            // Check if all paid tickets are sold out
+            isSoldOut = ticketTiers
+              .filter(tier => tier?.price > 0)
+              .every(tier => tier?.quantity <= (tier?.paid_quantity_sold || 0));
+          } else {
+            // For free tickets
+            totalTickets = ticketTiers
+              .filter(tier => tier?.price === 0)
+              .reduce((sum, tier) => sum + (tier?.quantity - (tier?.quantity_sold || 0)), 0);
+            
+            // Check if all free tickets are sold out
+            isSoldOut = ticketTiers
+              .filter(tier => tier?.price === 0)
+              .every(tier => tier?.quantity <= (tier?.quantity_sold || 0));
           }
         }
         
         return {
           id: event.id,
-          name: event.name,
-          description: event.description,
-          date: event.event_date,
-          location: `${event.city}, ${event.state}`,
-          imageUrl: coverImage || '/placeholder-event.jpg',
-          price: lowestPrice !== null ? `$${lowestPrice.toFixed(2)}` : 'Free'
+          title: event.name || 'Untitled Event',
+          image: coverImage,
+          eventDate: event.event_date ? new Date(event.event_date) : null, // Store the actual Date object
+          date: event.event_date ? new Date(event.event_date).toLocaleDateString('en-US', { 
+            weekday: 'long',
+            month: 'long',
+            day: 'numeric'
+          }) : 'Date TBA',
+          time: event.start_time || 'Time TBA',
+          location: `${event.city || ''}${event.state ? `, ${event.state}` : ''}`,
+          price: lowestPrice === 0 ? 'Free' : `₦${lowestPrice.toLocaleString()}`,
+          ticketCount: isSoldOut ? 'No available ticket for this event' : totalTickets,
+          description: event.description
         };
       });
-      
-      setUpcomingEvents(processedEvents);
+
+      // Sort events by date in descending order (newest first)
+      const sortedEvents = processedEvents.sort((a, b) => {
+        if (!a.eventDate) return 1;  // Null dates go to the end
+        if (!b.eventDate) return -1;
+        return b.eventDate - a.eventDate;
+      });
+
+      // Set all events in the state variables
+      setFeaturedEvents(sortedEvents.slice(0, 3));
+      setTrendingEvents(sortedEvents.slice(0, 2));
+      setUpcomingEvents(sortedEvents);
     } catch (error) {
       console.error('Error fetching events:', error);
-      setErrorMessage('Failed to load events. Please try again.');
+      // Provide more detailed error information
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        setErrorMessage('Network connection error. Please check your internet connection.');
+      } else {
+        setErrorMessage(`Error: ${error.message || 'Unknown error occurred'}`);
+      }
+      setUpcomingEvents([]);
     } finally {
       setIsLoading(false);
     }
-  }, []);
-  
-  // Show loading state before client-side render
-  if (!isClient) {
+  };
+
+  // Function to handle event card click
+  const handleEventClick = (event) => {
+    setSelectedEvent(event);
+    setShowModal(true);
+  };
+
+  // Function to close the modal
+  const closeModal = () => {
+    setShowModal(false);
+  };
+
+  // Function to handle "Get Tickets" button click
+  const handleGetTickets = (event, e) => {
+    if (e) {
+      e.preventDefault(); // Prevent default link behavior
+      e.stopPropagation(); // Stop event bubbling
+    }
+    
+    // Set the selected event and show the ticket modal
+    setSelectedEvent(event);
+    closeModal(); // Close the preview modal if it's open
+    setShowTicketModal(true);
+  };
+
+  // Function to close the ticket modal
+  const closeTicketModal = () => {
+    setShowTicketModal(false);
+  };
+
+  // If error or no events found, display a message
+  if (errorMessage) {
     return (
-      <div className="min-h-screen bg-white flex flex-col">
+      <div className="min-h-screen bg-gradient-to-b from-white to-amber-50">
         <Navbar />
-        <div className="flex-grow flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
+        <div className="flex flex-col items-center justify-center p-6 text-center my-12">
+          <h2 className="text-2xl font-semibold text-red-600 mb-4">Error</h2>
+          <p className="text-gray-700 mb-6">{errorMessage}</p>
+          <button 
+            onClick={fetchEvents}
+            className="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800"
+          >
+            Try Again
+          </button>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  // If loading, display a loading spinner
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-white to-amber-50">
+        <Navbar />
+        <div className="flex justify-center items-center h-64 my-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-900"></div>
         </div>
         <Footer />
       </div>
@@ -164,408 +220,682 @@ function HomeContent() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="min-h-screen bg-gradient-to-b from-white to-amber-50">
       <Navbar />
-      
+
       {/* Hero Section */}
-      <main className="flex-grow">
-        <section className="relative py-12 md:py-16 lg:py-20 bg-gradient-to-r from-blue-600 to-indigo-800 text-white">
-          <div className="container mx-auto px-4">
-            <div className="max-w-3xl mx-auto text-center">
-              <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6">
-                Discover the best events happening near you
-              </h1>
-              <p className="text-xl mb-8">
-                Find concerts, classes, conferences, and many other amazing events
-              </p>
-              <SearchBox />
-            </div>
-          </div>
-        </section>
+      <div className="relative h-[600px] w-full overflow-hidden">
+        <Image
+          src="/hero.png"
+          alt="Hero background"
+          fill
+          className="object-cover"
+          priority
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-amber-900/80 to-orange-600/60"></div>
+        <div className="absolute inset-0 bg-[url('/pattern.png')] opacity-20 mix-blend-overlay"></div>
         
-        {/* Features Section */}
-        <section className="py-12 md:py-16 bg-white">
-          <div className="container mx-auto px-4">
-            <h2 className="text-2xl md:text-3xl font-bold text-center mb-12">
-              How IP Event Works
-            </h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div className="text-center p-6">
-                <div className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center mb-4">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-semibold mb-2">Discover Events</h3>
-                <p className="text-gray-600">
-                  Search for events by location, category, or date to find the perfect event for you.
-                </p>
-              </div>
-              
-              <div className="text-center p-6">
-                <div className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center mb-4">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-semibold mb-2">Buy Tickets</h3>
-                <p className="text-gray-600">
-                  Securely purchase tickets to your favorite events with just a few clicks.
-                </p>
-              </div>
-              
-              <div className="text-center p-6">
-                <div className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center mb-4">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-semibold mb-2">Enjoy the Experience</h3>
-                <p className="text-gray-600">
-                  Attend the event and create unforgettable memories with friends and family.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-        
-        {/* Upcoming Events */}
-        <section className="py-12 md:py-16 bg-gray-50">
-          <div className="container mx-auto px-4">
-            <div className="flex justify-between items-center mb-8">
-              <h2 className="text-2xl md:text-3xl font-bold">Upcoming Events</h2>
-              <Link href="/explore" className="text-blue-600 hover:underline font-medium">
-                View All
-              </Link>
-            </div>
-            
-            {isLoading ? (
-              <div className="flex justify-center items-center py-16">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
-              </div>
-            ) : errorMessage ? (
-              <div className="bg-white p-6 rounded-lg shadow text-center my-8">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-red-500 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        <div className="relative z-10 flex flex-col items-center justify-center h-full text-center px-4 pt-16 md:pt-0">
+          <motion.p 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="text-amber-100 text-3xl md:text-4xl mb-3 font-light tracking-wide mt-8 md:mt-0"
+          >
+            Discover & Experience
+          </motion.p>
+          
+          <motion.h1 
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="text-5xl md:text-7xl font-bold mb-6 text-white tracking-tight"
+          >
+            <span className="block">Find Your Perfect</span>
+            <motion.span 
+              initial={{ backgroundPosition: "200% 0" }}
+              animate={{ backgroundPosition: "0% 0" }}
+              transition={{ duration: 1.5, delay: 0.4 }}
+              className="bg-clip-text text-transparent bg-gradient-to-r from-amber-500 to-orange-400"
+            >
+              Event Experience
+            </motion.span>
+          </motion.h1>
+          
+          <motion.p 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.4 }}
+            className="text-white max-w-xl mb-10 text-lg"
+          >
+            Connect with thousands of events happening around you. From concerts to workshops, find what moves you.
+          </motion.p>
+          
+          {/* Search Bar */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.6 }}
+            className="flex flex-col md:flex-row w-full max-w-3xl mx-auto rounded-xl overflow-hidden shadow-2xl transform transition-all duration-300 hover:shadow-amber-500/20 hover:-translate-y-1"
+          >
+            <div className="flex-1 flex flex-col md:flex-row bg-white">
+              <div className="flex items-center px-4 py-3 md:py-0 border-b md:border-b-0 md:border-r border-gray-100 flex-1">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                <h3 className="text-xl font-bold text-gray-800 mb-2">{errorMessage}</h3>
-                <button 
-                  onClick={fetchEvents} 
-                  className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                >
-                  Try Again
-                </button>
+                <input
+                  type="text"
+                  placeholder="Search for events, concerts, workshops..."
+                  className="w-full p-3 text-black outline-none bg-transparent"
+                />
               </div>
-            ) : upcomingEvents.length === 0 ? (
-              <div className="bg-white p-6 rounded-lg shadow text-center my-8">
-                <p className="text-gray-600">No upcoming events found at the moment.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                {upcomingEvents.map((event) => (
-                  <Link key={event.id} href={`/events/${event.id}`}>
-                    <div className="bg-white rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow z-10">
-                      <div className="relative h-48">
-                        <Image
-                          src={event.imageUrl}
-                          alt={event.name}
-                          fill
-                          className="object-cover"
-                          unoptimized={!event.imageUrl.startsWith('/')}
-                        />
-                      </div>
-                      <div className="p-6">
-                        <h3 className="text-xl font-bold mb-2 line-clamp-1">{event.name}</h3>
-                        <p className="text-gray-600 mb-4 line-clamp-2">{event.description}</p>
-                        <div className="flex items-center text-gray-500 mb-2">
-                          <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                          <span>{event.date}</span>
-                        </div>
-                        <div className="flex items-center text-gray-500 mb-4">
-                          <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                          </svg>
-                          <span>{event.location}</span>
-                        </div>
-                        <div className="font-bold text-blue-600">{event.price}</div>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-            
-            <div className="text-center">
-              <Link 
-                href="/explore" 
-                className="inline-block px-6 py-3 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition-colors"
-              >
-                Explore All Events
-              </Link>
-            </div>
-          </div>
-        </section>
-        
-        {/* Testimonials */}
-        <section className="py-12 md:py-16 bg-white">
-          <div className="container mx-auto px-4">
-            <h2 className="text-2xl md:text-3xl font-bold text-center mb-12">
-              What Our Users Say
-            </h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div className="bg-gray-50 p-6 rounded-lg">
-                <div className="flex items-center mb-4">
-                  <div className="w-12 h-12 bg-gray-300 rounded-full overflow-hidden mr-4">
-                    <Image src="/testimonial-1.jpg" alt="User" width={48} height={48} />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">Sarah Johnson</h3>
-                    <p className="text-gray-600 text-sm">Event Attendee</p>
-                  </div>
-                </div>
-                <p className="text-gray-700">
-                  "I found an amazing concert on IP Event last weekend. The ticket buying process was smooth, and I had no issues at the event. Highly recommend!"
-                </p>
-              </div>
-              
-              <div className="bg-gray-50 p-6 rounded-lg">
-                <div className="flex items-center mb-4">
-                  <div className="w-12 h-12 bg-gray-300 rounded-full overflow-hidden mr-4">
-                    <Image src="/testimonial-2.jpg" alt="User" width={48} height={48} />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">Michael Rodriguez</h3>
-                    <p className="text-gray-600 text-sm">Event Organizer</p>
-                  </div>
-                </div>
-                <p className="text-gray-700">
-                  "As an event organizer, IP Event has made it incredibly easy to sell tickets and manage attendees. The platform is intuitive and the support team is fantastic."
-                </p>
-              </div>
-              
-              <div className="bg-gray-50 p-6 rounded-lg">
-                <div className="flex items-center mb-4">
-                  <div className="w-12 h-12 bg-gray-300 rounded-full overflow-hidden mr-4">
-                    <Image src="/testimonial-3.jpg" alt="User" width={48} height={48} />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">Emily Chen</h3>
-                    <p className="text-gray-600 text-sm">Regular User</p>
-                  </div>
-                </div>
-                <p className="text-gray-700">
-                  "I use IP Event at least once a month to find interesting events in my city. The search filters are really helpful, and I've discovered so many cool activities!"
-                </p>
+              <div className="flex items-center px-4 py-3 md:py-0 flex-1">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Location"
+                  className="w-full p-3 text-black outline-none bg-transparent"
+                />
               </div>
             </div>
-          </div>
-        </section>
-        
-        {/* CTA */}
-        <section className="py-12 md:py-16 bg-gradient-to-r from-indigo-800 to-blue-600 text-white">
-          <div className="container mx-auto px-4 text-center">
-            <h2 className="text-2xl md:text-3xl font-bold mb-6">
-              Ready to discover amazing events?
-            </h2>
-            <p className="text-xl mb-8 max-w-2xl mx-auto">
-              Join thousands of users who find and attend incredible events every day with IP Event.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link 
-                href="/explore" 
-                className="px-6 py-3 bg-white text-blue-600 font-medium rounded-md hover:bg-gray-100 transition-colors"
-              >
-                Explore Events
-              </Link>
-              <Link 
-                href="/create-event" 
-                className="px-6 py-3 bg-transparent border-2 border-white text-white font-medium rounded-md hover:bg-white/10 transition-colors"
-              >
-                Create Event
-              </Link>
+            <motion.button 
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.98 }}
+              className="bg-gradient-to-r from-amber-500 to-orange-400 text-white px-8 py-4 font-medium transition-all hover:from-amber-600 hover:to-orange-500"
+            >
+              Discover Events
+            </motion.button>
+          </motion.div>
+          
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.8 }}
+            className="flex items-center mt-8 text-white/80 text-sm"
+          >
+            <motion.span 
+              whileHover={{ scale: 1.05 }}
+              className="flex items-center mr-4"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span className="text-white">10,000+ Events</span>
+            </motion.span>
+            <motion.span 
+              whileHover={{ scale: 1.05 }}
+              className="flex items-center mr-4"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span className="text-white">Trusted Platform</span>
+            </motion.span>
+            <motion.span 
+              whileHover={{ scale: 1.05 }}
+              className="flex items-center"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span className="text-white">Secure Payments</span>
+            </motion.span>
+          </motion.div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 py-16">
+        {/* Featured Events Section */}
+        <div className="mb-20">
+          <div className="flex flex-col md:flex-row justify-between items-center mb-10">
+            <div>
+              <h2 className="text-3xl font-bold mb-2 text-black">Featured Events</h2>
+              <p className="text-gray-600">Discover the most popular events in your area</p>
+            </div>
+            <div className="mt-4 md:mt-0 flex space-x-2">
+              <button className="px-4 py-2 border border-gray-300 rounded-full text-sm text-black hover:bg-gray-50 transition-colors">
+                This Weekend
+              </button>
+              <button className="px-4 py-2 border border-gray-300 rounded-full text-sm text-black hover:bg-gray-50 transition-colors">
+                This Month
+              </button>
+              <button className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-400 text-white rounded-full text-sm hover:from-amber-600 hover:to-orange-500 transition-colors">
+                View All
+              </button>
             </div>
           </div>
-        </section>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {featuredEvents.map(event => (
+              <FeaturedEventCard 
+                key={event.id} 
+                {...event} 
+                onClick={() => handleEventClick(event)}
+                onGetTickets={(e) => handleGetTickets(event, e)}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Categories Section */}
+        <div className="mb-20">
+          <div className="flex flex-col md:flex-row justify-between items-center mb-10">
+            <div>
+              <h2 className="text-3xl font-bold mb-2 text-black">Browse Categories</h2>
+              <p className="text-gray-600 mb-2">Find events that match your interests</p>
+            </div>
+            <Link href="/categories" className="mt-4 md:mt-0 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-400 text-white rounded-lg text-sm font-semibold shadow-sm hover:shadow-lg transition-all duration-300 flex items-center">
+              View All Categories
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </Link>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+            <CategoryCard icon="🎵" title="Music" count="1,200+ Events" bgColor="bg-gray-50" accentColor="text-gray-900" hoverColor="group-hover:bg-gray-100" />
+            <CategoryCard icon="🏃" title="Sports" count="800+ Events" bgColor="bg-gray-50" accentColor="text-gray-900" hoverColor="group-hover:bg-gray-100" />
+            <CategoryCard icon="🎨" title="Arts" count="650+ Events" bgColor="bg-gray-50" accentColor="text-gray-900" hoverColor="group-hover:bg-gray-100" />
+            <CategoryCard icon="💼" title="Business" count="450+ Events" bgColor="bg-gray-50" accentColor="text-gray-900" hoverColor="group-hover:bg-gray-100" />
+            <CategoryCard icon="📸" title="Photography" count="320+ Events" bgColor="bg-gray-50" accentColor="text-gray-900" hoverColor="group-hover:bg-gray-100" />
+            <CategoryCard icon="📚" title="Training" count="280+ Events" bgColor="bg-gray-50" accentColor="text-gray-900" hoverColor="group-hover:bg-gray-100" />
+          </div>
+        </div>
+
+        {/* Trending Events Section */}
+        <div className="mb-20">
+          <div className="flex flex-col md:flex-row justify-between items-start mb-10">
+            <div>
+              <h2 className="text-3xl font-bold mb-2 text-black">Trending This Week</h2>
+              <p className="text-gray-600">Don&apos;t miss out on the hottest events</p>
+            </div>
+            <Link href="/explore" className="mt-4 md:mt-0 px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-400 text-white rounded-lg text-sm font-medium hover:from-amber-600 hover:to-orange-500 transition-colors flex items-center">
+              Explore All
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </Link>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {trendingEvents.map(event => (
+              <TrendingEventCard 
+                key={event.id} 
+                {...event} 
+                onClick={() => handleEventClick(event)}
+                onGetTickets={(e) => handleGetTickets(event, e)}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Upcoming Events Section */}
+        <div className="mb-20">
+          <div className="flex flex-col md:flex-row justify-between items-start mb-10">
+            <div>
+              <h2 className="text-3xl font-bold mb-2 text-black">Upcoming Events</h2>
+              <p className="text-gray-600">Plan ahead for these amazing experiences</p>
+            </div>
+            <div className="mt-4 md:mt-0 flex space-x-2">
+              <button className="px-4 py-2 border border-gray-300 rounded-full text-sm text-black hover:bg-gray-50 transition-colors">
+                All
+              </button>
+              <button className="px-4 py-2 border border-gray-300 rounded-full text-sm text-black hover:bg-gray-50 transition-colors">
+                Today
+              </button>
+              <button className="px-4 py-2 border border-gray-300 rounded-full text-sm text-black hover:bg-gray-50 transition-colors">
+                This Week
+              </button>
+              <button className="px-4 py-2 border border-gray-300 rounded-full text-sm text-black hover:bg-gray-50 transition-colors">
+                This Month
+              </button>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {upcomingEvents.slice(0, 9).map(event => (
+              <EventCard 
+                key={event.id} 
+                {...event} 
+                onClick={() => handleEventClick(event)}
+                onGetTickets={(e) => handleGetTickets(event, e)}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* CTA Section */}
+        <div className="relative rounded-2xl overflow-hidden shadow-xl">
+          <div className="absolute inset-0 bg-black"></div>
+          
+          {/* Animated shine effect */}
+          <style jsx global>{`
+            @keyframes shine {
+              0% {
+                transform: translateX(-100%);
+              }
+              100% {
+                transform: translateX(200%);
+              }
+            }
+            .animate-shine {
+              animation: shine 3s infinite linear;
+            }
+          `}</style>
+          
+          {/* Shine overlay */}
+          <div className="absolute inset-0 overflow-hidden">
+            <div className="absolute -inset-[10px] opacity-30 bg-gradient-to-r from-transparent via-white to-transparent skew-x-[-45deg] animate-shine"></div>
+          </div>
+          
+          <div className="relative z-10 flex flex-col md:flex-row items-center justify-between p-10 md:p-16">
+            <div className="text-center md:text-left mb-8 md:mb-0">
+              <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Elevate Your Events with EventTips</h2>
+              <p className="text-white/80 max-w-xl">
+                From venue selection to ticket management, our platform provides everything you need to create memorable experiences that your attendees will love.
+              </p>
+            </div>
+            <div className="w-full md:w-auto">
+              <div className="relative h-48 w-full md:w-64 rounded-lg overflow-hidden">
+                <Image
+                  src="https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80"
+                  alt="Event hosting"
+                  fill
+                  className="object-cover"
+                  unoptimized={true}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
       </main>
-      
+
+      {/* Event Preview Modal */}
+      {showModal && selectedEvent && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="relative bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            {/* Close button */}
+            <button 
+              onClick={closeModal}
+              className="absolute top-4 right-4 z-10 bg-white/80 backdrop-blur-sm rounded-full p-2 hover:bg-white transition-colors shadow-md"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            
+            <div className="flex flex-col md:flex-row h-full">
+              {/* Event Image */}
+              <div className="relative md:w-1/2 h-64 md:h-auto">
+                <Image
+                  src={selectedEvent.image}
+                  alt={selectedEvent.title}
+                  fill
+                  className="object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent"></div>
+                
+                {/* Category tag */}
+                <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-4 py-1.5 rounded-full text-xs font-semibold text-amber-900 shadow-sm">
+                  {selectedEvent.category || "Event"}
+                </div>
+              </div>
+              
+              {/* Event Details */}
+              <div className="md:w-1/2 p-6 md:p-8 overflow-y-auto max-h-[70vh] md:max-h-[90vh]">
+                <h2 className="text-2xl md:text-3xl font-bold text-amber-900 mb-4">{selectedEvent.title}</h2>
+                
+                <div className="mb-6">
+                  <div className="flex items-center mb-3">
+                    <div className="bg-amber-50 rounded-full p-2 mr-3">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">Date</p>
+                      <p className="text-gray-600">{selectedEvent.date}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center mb-3">
+                    <div className="bg-amber-50 rounded-full p-2 mr-3">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">Time</p>
+                      <p className="text-gray-600">{selectedEvent.time || "TBA"}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center mb-3">
+                    <div className="bg-amber-50 rounded-full p-2 mr-3">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">Location</p>
+                      <p className="text-gray-600">{selectedEvent.location}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center">
+                    <div className="bg-amber-50 rounded-full p-2 mr-3">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">Price</p>
+                      <p className="text-amber-600 font-bold">{selectedEvent.price}</p>
+                      {selectedEvent.price !== 'Free' && selectedEvent.ticketCount !== 'No available ticket for this event' && (
+                        <p className="text-xs text-gray-500">{selectedEvent.ticketCount} tickets available</p>
+                      )}
+                      {selectedEvent.price === 'Free' && selectedEvent.ticketCount !== 'No available ticket for this event' && (
+                        <p className="text-xs text-gray-500">{selectedEvent.ticketCount} free tickets available</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="mb-8">
+                  <h3 className="text-lg font-semibold mb-2">About This Event</h3>
+                  <p className="text-gray-600">
+                    {selectedEvent.description || "Join us for an amazing event experience. More details will be provided soon!"}
+                  </p>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <Link href="/my-tickets" className="px-4 py-2 border border-amber-500 text-amber-600 rounded-lg hover:bg-amber-50 transition-colors">
+                    My Tickets
+                  </Link>
+                  <button 
+                    onClick={(e) => handleGetTickets(selectedEvent, e)}
+                    disabled={selectedEvent.ticketCount === 'No available ticket for this event'}
+                    className={`px-6 py-3 rounded-lg font-medium transition-all ${
+                      selectedEvent.ticketCount === 'No available ticket for this event'
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-amber-500 to-orange-400 text-white shadow-sm hover:shadow-md'
+                    }`}
+                  >
+                    {selectedEvent.ticketCount === 'No available ticket for this event' ? 'Sold Out' : 'Get Tickets'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ticket Purchase Modal */}
+      {showTicketModal && selectedEvent && (
+        <TicketModal 
+          event={selectedEvent} 
+          isOpen={showTicketModal} 
+          onClose={closeTicketModal} 
+        />
+      )}
+
       <Footer />
     </div>
   );
 }
 
-// Main component with error boundary
-export default function Home() {
-  return (
-    <ErrorBoundary>
-      <Suspense fallback={
-        <div className="min-h-screen bg-white flex flex-col">
-          <Navbar />
-          <div className="flex-grow flex items-center justify-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
-          </div>
-          <Footer />
-        </div>
-      }>
-        <HomeContent />
-      </Suspense>
-    </ErrorBoundary>
-  );
-}
-
 // Featured Event Card Component
-function FeaturedEventCard({ id, title, image, date, location, price, category, attendees }) {
+function FeaturedEventCard({ id, title, image, date, location, price, category = "Featured", attendees = "100+ attending", ticketCount, onClick, onGetTickets }) {
+  const isSoldOut = ticketCount === 'No available ticket for this event';
+  
   return (
-    <Link href={`/events/${id}`} className="group block bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-      <div className="relative h-56">
-          <Image
+    <div onClick={onClick} className="group bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer">
+      <div className="relative h-64">
+        <Image
           src={image}
           alt={title}
           fill
-          className="object-cover transition-transform duration-500 group-hover:scale-105"
+          className="object-cover"
         />
-        <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium text-gray-800">
-          {category}
+        <div className="absolute inset-0 bg-black/40"></div>
+        <div className="absolute top-4 left-4">
+          <div className="bg-white px-3 py-1 text-xs font-medium text-gray-700">
+            {category}
+          </div>
         </div>
-        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium text-gray-800 flex items-center">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      </div>
+      <div className="p-6">
+        <div className="flex items-center text-gray-500 text-sm mb-2">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
           </svg>
           {attendees}
         </div>
-      </div>
-      <div className="p-6">
-        <h3 className="text-xl font-bold mb-2 group-hover:text-purple-700 transition-colors">{title}</h3>
-        <div className="flex items-center text-gray-500 mb-2">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          <p className="text-sm">{date}</p>
-        </div>
-        <div className="flex items-center text-gray-500 mb-4">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          <p className="text-sm">{location}</p>
-        </div>
-        <div className="flex justify-between items-center">
-          <p className="text-purple-700 font-bold">From {price}</p>
-          <button className="text-sm font-medium text-purple-700 hover:text-purple-900 transition-colors">
-            Get Tickets
-          </button>
-        </div>
-      </div>
-    </Link>
-  );
-}
-
-// Trending Event Card Component
-function TrendingEventCard({ id, title, image, date, location, price, category, rating, reviews }) {
-  return (
-    <Link href={`/events/${id}`} className="group flex flex-col md:flex-row bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300">
-      <div className="relative md:w-2/5 h-56 md:h-auto">
-          <Image
-          src={image}
-          alt={title}
-          fill
-          className="object-cover transition-transform duration-500 group-hover:scale-105"
-        />
-        <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium text-gray-800">
-          {category}
-        </div>
-      </div>
-      <div className="p-6 md:w-3/5 flex flex-col justify-between">
-        <div>
-          <div className="flex items-center mb-2">
-            <div className="flex text-yellow-400 mr-2">
-              {[...Array(5)].map((_, i) => (
-                <svg key={i} xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 ${i < Math.floor(rating) ? 'fill-current' : 'stroke-current fill-none'}`} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                </svg>
-              ))}
-            </div>
-            <span className="text-sm text-gray-600">{rating} ({reviews} reviews)</span>
-          </div>
-          <h3 className="text-xl font-bold mb-3 group-hover:text-purple-700 transition-colors">{title}</h3>
-          <div className="flex items-center text-gray-500 mb-2">
+        <h3 className="text-lg font-semibold text-gray-900 mb-3 line-clamp-2">{title}</h3>
+        <div className="space-y-2 mb-4">
+          <div className="flex items-center text-gray-600 text-sm">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
-            <p className="text-sm">{date}</p>
+            {date}
           </div>
-          <div className="flex items-center text-gray-500 mb-4">
+          <div className="flex items-center text-gray-600 text-sm">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-            <p className="text-sm">{location}</p>
+            {location}
           </div>
         </div>
-        <div className="flex justify-between items-center">
-          <p className="text-purple-700 font-bold">From {price}</p>
-          <button className="px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-lg text-sm hover:from-pink-600 hover:to-purple-700 transition-colors">
-            Get Tickets
+        <div className="flex justify-between items-center pt-4 border-t border-gray-100">
+          <div>
+            <span className="text-xs text-gray-500">Starting from</span>
+            <p className="text-gray-900 font-medium">{price}</p>
+            {price !== 'Free' && ticketCount !== 'No available ticket for this event' && (
+              <span className="text-xs text-gray-500">{ticketCount} tickets available</span>
+            )}
+            {price === 'Free' && ticketCount !== 'No available ticket for this event' && (
+              <span className="text-xs text-gray-500">{ticketCount} free tickets available</span>
+            )}
+          </div>
+          <button 
+            onClick={onGetTickets} 
+            disabled={isSoldOut}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              isSoldOut 
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                : 'bg-black text-white hover:bg-gray-800'
+            }`}
+          >
+            {isSoldOut ? 'Sold Out' : 'Get Tickets'}
+            {!isSoldOut && (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1.5 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            )}
           </button>
         </div>
       </div>
-    </Link>
+    </div>
+  );
+}
+
+// Trending Event Card Component
+function TrendingEventCard({ id, title, image, date, location, price, category = "Trending", rating = 4.5, reviews = 27, ticketCount, onClick, onGetTickets }) {
+  const isSoldOut = ticketCount === 'No available ticket for this event';
+  
+  return (
+    <div onClick={onClick} className="group flex flex-col md:flex-row bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer">
+      <div className="relative md:w-2/5 h-64 md:h-auto">
+        <Image
+          src={image}
+          alt={title}
+          fill
+          className="object-cover"
+        />
+        <div className="absolute inset-0 bg-black/40"></div>
+        <div className="absolute top-4 left-4">
+          <div className="bg-white px-3 py-1 text-xs font-medium text-gray-700">
+            {category}
+          </div>
+        </div>
+      </div>
+      <div className="p-6 md:w-3/5 flex flex-col justify-between">
+        <div>
+          <div className="flex items-center text-gray-500 text-sm mb-3">
+            <div className="flex text-gray-400 mr-2">
+              {[...Array(5)].map((_, i) => (
+                <svg key={i} xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 ${i < Math.floor(rating) ? 'text-gray-900' : 'text-gray-300'}`} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                </svg>
+              ))}
+            </div>
+            <span className="text-gray-600">{rating} ({reviews} reviews)</span>
+          </div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-4 line-clamp-2">{title}</h3>
+          <div className="space-y-2">
+            <div className="flex items-center text-gray-600 text-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              {date}
+            </div>
+            <div className="flex items-center text-gray-600 text-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              {location}
+            </div>
+          </div>
+        </div>
+        <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-100">
+          <div>
+            <span className="text-xs text-gray-500">Starting from</span>
+            <p className="text-gray-900 font-medium">{price}</p>
+            {price !== 'Free' && ticketCount !== 'No available ticket for this event' && (
+              <span className="text-xs text-gray-500">{ticketCount} tickets available</span>
+            )}
+            {price === 'Free' && ticketCount !== 'No available ticket for this event' && (
+              <span className="text-xs text-gray-500">{ticketCount} free tickets available</span>
+            )}
+          </div>
+          <button 
+            onClick={onGetTickets}
+            disabled={isSoldOut}
+            className={`px-5 py-2 text-sm font-medium transition-colors ${
+              isSoldOut 
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                : 'bg-black text-white hover:bg-gray-800'
+            }`}
+          >
+            {isSoldOut ? 'Sold Out' : 'Get Tickets'}
+            {!isSoldOut && (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1.5 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
 // Event Card Component
-function EventCard({ id, title, image, date, location, price }) {
+function EventCard({ id, title, image, date, location, price, ticketCount, onClick, onGetTickets }) {
+  const isSoldOut = ticketCount === 'No available ticket for this event';
+  
   return (
-    <Link href={`/events/${id}`} className="group block bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+    <div onClick={onClick} className="group bg-white border border-gray-100 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer">
       <div className="relative h-48">
-          <Image
+        <Image
           src={image}
           alt={title}
           fill
-          className="object-cover transition-transform duration-500 group-hover:scale-105"
+          className="object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-        <h3 className="absolute bottom-4 left-4 text-white text-lg font-bold">{title}</h3>
+        <div className="absolute inset-0 bg-black/40"></div>
       </div>
       <div className="p-4">
-        <div className="flex items-center text-gray-500 mb-2">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          <p className="text-sm">{date}</p>
-        </div>
-        <div className="flex items-center text-gray-500 mb-3">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          <p className="text-sm">{location}</p>
-        </div>
-        <div className="flex justify-between items-center">
-          <p className="text-purple-700 font-bold">From {price}</p>
-          <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center group-hover:bg-purple-200 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-purple-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        <h3 className="text-base font-semibold text-gray-900 mb-2 line-clamp-2">{title}</h3>
+        <div className="space-y-1.5 mb-3">
+          <div className="flex items-center text-gray-600 text-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
+            {date}
+          </div>
+          <div className="flex items-center text-gray-600 text-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            {location}
           </div>
         </div>
+        <div className="flex justify-between items-center pt-3 border-t border-gray-100">
+          <div>
+            <span className="text-xs text-gray-500">Starting from</span>
+            <p className="text-gray-900 font-medium">{price}</p>
+            {price !== 'Free' && ticketCount !== 'No available ticket for this event' && (
+              <span className="text-xs text-gray-500">{ticketCount} available</span>
+            )}
+            {price === 'Free' && ticketCount !== 'No available ticket for this event' && (
+              <span className="text-xs text-gray-500">{ticketCount} free tickets available</span>
+            )}
+          </div>
+          <button 
+            onClick={onGetTickets}
+            disabled={isSoldOut}
+            className={`w-8 h-8 flex items-center justify-center transition-colors ${
+              isSoldOut 
+                ? 'bg-gray-100 cursor-not-allowed' 
+                : 'bg-black text-white hover:bg-gray-800'
+            }`}
+          >
+            {isSoldOut ? (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            )}
+          </button>
+        </div>
       </div>
-    </Link>
+    </div>
   );
 }
 
 // Category Card Component
-function CategoryCard({ icon, title, count }) {
+function CategoryCard({ icon, title, count, bgColor = "bg-gray-50", accentColor = "text-gray-900", hoverColor = "group-hover:bg-gray-100" }) {
   return (
-    <div className="flex flex-col items-center justify-center p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 transform hover:-translate-y-1 cursor-pointer border border-gray-100">
-      <span className="text-4xl mb-4">{icon}</span>
-      <h3 className="text-lg font-medium mb-1">{title}</h3>
-      <p className="text-sm text-gray-500">{count}</p>
-    </div>
+    <Link href={`/categories?category=${encodeURIComponent(title.toLowerCase())}`} className="group bg-white border border-gray-100 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer">
+      <div className="p-6">
+        <div className="flex items-center mb-4">
+          <div className={`${bgColor} w-12 h-12 rounded-lg flex items-center justify-center mr-4 ${hoverColor} transition-colors`}>
+            <span className="text-2xl">{icon}</span>
+          </div>
+          <div>
+            <h3 className="text-base font-semibold text-gray-900 mb-1">{title}</h3>
+            <p className="text-sm text-gray-500">{count}</p>
+          </div>
+        </div>
+        <div className="flex items-center text-sm text-gray-600">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+          View Events
+        </div>
+      </div>
+    </Link>
   );
 }

@@ -165,8 +165,8 @@ function CreateEventContent() {
           
           // Convert directly to base64 for reliable storage
           console.log('Converting album image to base64...');
-          const base64String = await fileToBase64(image);
-          uploadedUrls.push(base64String);
+            const base64String = await fileToBase64(image);
+            uploadedUrls.push(base64String);
         } catch (imageError) {
           console.error('Error uploading album image:', imageError.message);
           // Continue with other images
@@ -269,101 +269,128 @@ function CreateEventContent() {
           console.error('Error creating ticket tier:', ticketError.message);
           // Continue with event creation even if ticket tier creation fails
         }
-      }
-
-      // Process images in parallel
-      const imagePromises = [];
-      
-      // Process cover image if selected
-      if (coverImage) {
-        const coverImagePromise = (async () => {
-          try {
-            console.log('Attempting to upload cover image...', coverImage.name);
-            const coverImageUrl = await uploadCoverImage();
-            console.log('Cover image upload result:', coverImageUrl ? 'Base64 data received (length: ' + coverImageUrl.length + ')' : 'Failed');
+      } else if (eventResult.id && quantity) {
+        // If it's a free event but has quantity, create a free ticket tier
+        try {
+          const freeTicketTierData = {
+            event_id: eventResult.id,
+            name: 'Free Ticket',
+            description: 'Free entry ticket',
+            price: 0,
+            quantity: parseInt(quantity) || 0,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          
+          console.log('Creating free ticket tier:', freeTicketTierData);
+          
+          const { error: ticketError } = await supabase
+            .from('ticket_tiers')
+            .insert([freeTicketTierData]);
             
-            if (coverImageUrl) {
+          if (ticketError) {
+            console.error('Error creating free ticket tier:', ticketError.message);
+          } else {
+            console.log('Free ticket tier created successfully');
+          }
+        } catch (ticketError) {
+          console.error('Error creating free ticket tier:', ticketError.message);
+        }
+      }
+        
+        // Process images in parallel
+        const imagePromises = [];
+        
+        // Process cover image if selected
+        if (coverImage) {
+          const coverImagePromise = (async () => {
+            try {
+              console.log('Attempting to upload cover image...', coverImage.name);
+              const coverImageUrl = await uploadCoverImage();
+            console.log('Cover image upload result:', coverImageUrl ? 'Base64 data received (length: ' + coverImageUrl.length + ')' : 'Failed');
+              
+              if (coverImageUrl) {
               console.log('Saving cover image to event_images table...');
-              const imageData = {
+                const imageData = {
                 event_id: eventResult.id,
-                image_url: coverImageUrl,
-                is_cover: true,
+                  image_url: coverImageUrl,
+                  is_cover: true,
                 created_at: new Date().toISOString()
-              };
-              
+                };
+                
               console.log('Image data to insert:', { ...imageData, image_url: 'Base64 data (truncated)' });
-              
+                
               // Insert image with RLS bypass
               const { error: imageError } = await supabase
-                .from('event_images')
-                .insert([imageData]);
-                
-              if (imageError) {
-                console.error('Error saving image data:', imageError.message);
-              } else {
-                console.log('Cover image saved successfully to database');
+                  .from('event_images')
+                  .insert([imageData]);
+                  
+                if (imageError) {
+                  console.error('Error saving image data:', imageError.message);
+                } else {
+                  console.log('Cover image saved successfully to database');
+                }
               }
+            } catch (imageError) {
+              console.error('Error processing cover image:', imageError.message);
+              // Continue with event creation even if image upload fails
             }
-          } catch (imageError) {
-            console.error('Error processing cover image:', imageError.message);
-            // Continue with event creation even if image upload fails
-          }
-        })();
+          })();
+          
+          imagePromises.push(coverImagePromise);
+        }
         
-        imagePromises.push(coverImagePromise);
-      }
-      
-      // Process album images if any
-      if (albumImages.length > 0) {
-        const albumImagesPromise = (async () => {
-          try {
-            console.log('Uploading album images...', albumImages.length, 'images');
+        // Process album images if any
+        if (albumImages.length > 0) {
+          const albumImagesPromise = (async () => {
+            try {
+              console.log('Uploading album images...', albumImages.length, 'images');
             const albumUrls = await uploadAlbumImages();
-            
-            if (albumUrls.length > 0) {
+              
+              if (albumUrls.length > 0) {
               console.log('Saving album images to event_images table...', albumUrls.length, 'base64 URLs');
-              const albumData = albumUrls.map(url => ({
+                const albumData = albumUrls.map(url => ({
                 event_id: eventResult.id,
-                image_url: url,
-                is_cover: false,
+                  image_url: url,
+                  is_cover: false,
                 created_at: new Date().toISOString()
-              }));
-              
+                }));
+                
               console.log('Album data to insert:', albumUrls.length, 'images as base64');
-              
+                
               // Insert album images with RLS bypass
               const { error: albumError } = await supabase
-                .from('event_images')
-                .insert(albumData);
-                
-              if (albumError) {
-                console.error('Error saving album data:', albumError.message);
-              } else {
-                console.log('Album images saved successfully to database');
+                  .from('event_images')
+                  .insert(albumData);
+                  
+                if (albumError) {
+                  console.error('Error saving album data:', albumError.message);
+                } else {
+                  console.log('Album images saved successfully to database');
+                }
               }
+            } catch (albumError) {
+              console.error('Error with album images:', albumError.message);
             }
-          } catch (albumError) {
-            console.error('Error with album images:', albumError.message);
-          }
-        })();
+          })();
+          
+          imagePromises.push(albumImagesPromise);
+        }
         
-        imagePromises.push(albumImagesPromise);
-      }
-      
-      // Wait for all image processing to complete (or fail)
-      try {
-        await Promise.allSettled(imagePromises);
-        console.log('All image processing completed');
-      } catch (imageProcessingError) {
-        console.error('Error during image processing:', imageProcessingError.message);
-        // Continue with redirection even if image processing fails
-      }
-
+        // Wait for all image processing to complete (or fail)
+        try {
+          await Promise.allSettled(imagePromises);
+          console.log('All image processing completed');
+        } catch (imageProcessingError) {
+          console.error('Error during image processing:', imageProcessingError.message);
+          // Continue with redirection even if image processing fails
+        }
+        
       // Store the event ID in session storage for the review page
       sessionStorage.setItem('currentEventId', eventResult.id);
       
       // Navigate to review page
-      router.push('/review-event');
+        router.push('/review-event');
     } catch (error) {
       console.error('Error creating event:', error.message);
       setError(error.message || 'Failed to create event. Please try again.');
@@ -387,17 +414,17 @@ function CreateEventContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200">
+    <div className="min-h-screen bg-slate-50">
+      <header className="bg-white border-b border-slate-200">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Link href="/dashboard" className="text-gray-500 hover:text-gray-700">
+            <Link href="/dashboard" className="text-slate-500 hover:text-slate-700">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
               </svg>
             </Link>
             <div>
-              <h1 className="text-2xl font-semibold">Create an event</h1>
+              <h1 className="text-2xl font-semibold text-slate-800">Create an event</h1>
             </div>
           </div>
         </div>
@@ -407,39 +434,39 @@ function CreateEventContent() {
         <div className="flex flex-col md:flex-row gap-8">
           {/* Left Sidebar */}
           <div className="w-full md:w-64 space-y-4">
-            <div className="bg-white rounded-lg p-4 shadow-sm">
-              <div className="text-sm text-gray-500">Last update</div>
-              <div className="font-medium">Monday, June 06 | 06:42 AM</div>
+            <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-200">
+              <div className="text-sm text-slate-500">Last update</div>
+              <div className="font-medium text-slate-800">Monday, June 06 | 06:42 AM</div>
             </div>
             
-            <div className="bg-white rounded-lg p-4 shadow-sm">
-              <div className="text-sm text-gray-500">Status</div>
-              <div className="font-medium">Draft</div>
+            <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-200">
+              <div className="text-sm text-slate-500">Status</div>
+              <div className="font-medium text-slate-800">Draft</div>
             </div>
             
-            <div className="bg-white rounded-lg p-4 shadow-sm">
-              <h3 className="font-semibold uppercase text-sm text-gray-500 mb-4">EVENT INFORMATION</h3>
+            <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-200">
+              <h3 className="font-semibold uppercase text-sm text-slate-500 mb-4">EVENT INFORMATION</h3>
               <ul className="space-y-2">
                 <li 
-                  className={`${activeSection === 'upload-cover' ? 'text-pink-500 font-medium' : 'text-gray-700'} cursor-pointer hover:text-pink-500`}
+                  className={`${activeSection === 'upload-cover' ? 'text-indigo-600 font-medium' : 'text-slate-600'} cursor-pointer hover:text-indigo-600 transition-colors`}
                   onClick={() => navigateToSection('upload-cover')}
                 >
                   Upload cover
                 </li>
                 <li 
-                  className={`${activeSection === 'general-information' ? 'text-pink-500 font-medium' : 'text-gray-700'} cursor-pointer hover:text-pink-500`}
+                  className={`${activeSection === 'general-information' ? 'text-indigo-600 font-medium' : 'text-slate-600'} cursor-pointer hover:text-indigo-600 transition-colors`}
                   onClick={() => navigateToSection('general-information')}
                 >
                   General information
                 </li>
                 <li 
-                  className={`${activeSection === 'location-and-time' ? 'text-pink-500 font-medium' : 'text-gray-700'} cursor-pointer hover:text-pink-500`}
+                  className={`${activeSection === 'location-and-time' ? 'text-indigo-600 font-medium' : 'text-slate-600'} cursor-pointer hover:text-indigo-600 transition-colors`}
                   onClick={() => navigateToSection('location-and-time')}
                 >
                   Location and time
                 </li>
                 <li 
-                  className={`${activeSection === 'ticket' ? 'text-pink-500 font-medium' : 'text-gray-700'} cursor-pointer hover:text-pink-500`}
+                  className={`${activeSection === 'ticket' ? 'text-indigo-600 font-medium' : 'text-slate-600'} cursor-pointer hover:text-indigo-600 transition-colors`}
                   onClick={() => navigateToSection('ticket')}
                 >
                   Ticket
@@ -447,11 +474,11 @@ function CreateEventContent() {
               </ul>
             </div>
             
-            <div className="bg-white rounded-lg p-4 shadow-sm">
-              <h3 className="font-semibold uppercase text-sm text-gray-500 mb-4">PUBLISH EVENT</h3>
+            <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-200">
+              <h3 className="font-semibold uppercase text-sm text-slate-500 mb-4">PUBLISH EVENT</h3>
               <ul className="space-y-2">
                 <li 
-                  className="text-gray-700 cursor-pointer hover:text-pink-500"
+                  className="text-slate-600 cursor-pointer hover:text-indigo-600 transition-colors"
                   onClick={() => router.push('/review-event')}
                 >
                   Review and Publish
@@ -464,19 +491,23 @@ function CreateEventContent() {
           <div className="flex-1">
             <form onSubmit={handleSubmit} className="space-y-8">
               {/* Upload Cover Section */}
-              <div id="upload-cover" className="bg-white rounded-lg p-6 shadow-sm">
+              <div id="upload-cover" className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
-                    <span className="text-pink-500 text-xl">📷</span>
-                    <h2 className="text-lg font-medium">Upload cover</h2>
+                    <div className="bg-indigo-100 p-2 rounded-lg">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <h2 className="text-lg font-medium text-slate-800">Upload cover</h2>
                   </div>
-                  <button type="button" className="text-gray-400">
+                  <button type="button" className="text-slate-400">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                     </svg>
                   </button>
                 </div>
-                <p className="text-sm text-gray-500 mb-4">Upload the event cover to capture your audience&apos;s attention</p>
+                <p className="text-sm text-slate-500 mb-4">Upload the event cover to capture your audience&apos;s attention</p>
                 
                 {/* Hidden file input */}
                 <input 
@@ -489,7 +520,7 @@ function CreateEventContent() {
                 
                 {/* Cover image preview or upload button */}
                 <div 
-                  className="border-2 border-dashed border-gray-300 rounded-lg h-40 flex items-center justify-center overflow-hidden relative"
+                  className="border-2 border-dashed border-slate-300 rounded-xl h-40 flex items-center justify-center overflow-hidden relative"
                   onClick={handleUploadClick}
                 >
                   {coverImageUrl ? (
@@ -503,7 +534,7 @@ function CreateEventContent() {
                       <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
                         <button 
                           type="button" 
-                          className="text-white font-medium bg-pink-500 px-3 py-1 rounded-md"
+                          className="text-white font-medium bg-gradient-to-r from-indigo-600 to-blue-500 px-3 py-1 rounded-lg shadow-sm hover:from-indigo-700 hover:to-blue-600 transition-all duration-300"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleUploadClick();
@@ -514,7 +545,7 @@ function CreateEventContent() {
                       </div>
                     </>
                   ) : uploadingCover ? (
-                    <div className="text-pink-500 font-medium flex items-center">
+                    <div className="text-indigo-600 font-medium flex items-center">
                       <svg className="animate-spin h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -522,24 +553,24 @@ function CreateEventContent() {
                       Uploading...
                     </div>
                   ) : (
-                    <button type="button" className="text-pink-500 font-medium">Upload Image</button>
+                    <button type="button" className="text-indigo-600 font-medium hover:text-indigo-700 transition-colors">Upload Image</button>
                   )}
                 </div>
                 
                 {/* Image upload instructions */}
-                <div className="mt-2 text-xs text-gray-500">
+                <div className="mt-2 text-xs text-slate-500">
                   Click to upload. Recommended size: 1200 x 630 pixels. Max size: 5MB.
                 </div>
               </div>
               
               {/* General Information Section */}
-              <div id="general-information" className="bg-white rounded-lg p-6 shadow-sm">
+              <div id="general-information" className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
-                    <span className="text-pink-500 text-xl">ℹ️</span>
-                    <h2 className="text-lg font-medium">General information</h2>
+                    <span className="text-indigo-600 text-xl">ℹ️</span>
+                    <h2 className="text-lg font-medium text-slate-800">General information</h2>
                   </div>
-                  <button type="button" className="text-gray-400">
+                  <button type="button" className="text-slate-400">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                     </svg>
@@ -548,47 +579,47 @@ function CreateEventContent() {
                 
                 <div className="space-y-6">
                   <div>
-                    <label htmlFor="eventName" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label htmlFor="eventName" className="block text-sm font-medium text-slate-700 mb-1">
                       Name <span className="text-red-500">*</span>
                     </label>
-                    <p className="text-xs text-gray-500 mb-1">Make it catchy and memorable</p>
+                    <p className="text-xs text-slate-500 mb-1">Make it catchy and memorable</p>
                     <input
                       type="text"
                       id="eventName"
                       value={eventName}
                       onChange={(e) => setEventName(e.target.value)}
                       placeholder="Rock Revolt: A Fusion of Power and Passion"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-pink-500"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
                       required
                     />
                   </div>
                   
                   <div>
-                    <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label htmlFor="description" className="block text-sm font-medium text-slate-700 mb-1">
                       Description
                     </label>
-                    <p className="text-xs text-gray-500 mb-1">Provide essential event details</p>
+                    <p className="text-xs text-slate-500 mb-1">Provide essential event details</p>
                     <textarea
                       id="description"
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       placeholder="Enter description..."
                       rows={4}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-pink-500"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
                     />
                   </div>
                   
                   <div>
-                    <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label htmlFor="category" className="block text-sm font-medium text-slate-700 mb-1">
                       Category
                     </label>
-                    <p className="text-xs text-gray-500 mb-1">Choose a category for your event</p>
+                    <p className="text-xs text-slate-500 mb-1">Choose a category for your event</p>
                     <div className="relative">
                       <select
                         id="category"
                         value={category}
                         onChange={(e) => setCategory(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-pink-500 appearance-none"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 appearance-none"
                       >
                         <option value="">Select a category</option>
                         <option value="music">Music</option>
@@ -598,7 +629,7 @@ function CreateEventContent() {
                         <option value="business">Business</option>
                       </select>
                       <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                        <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <svg className="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                         </svg>
                       </div>
@@ -606,10 +637,10 @@ function CreateEventContent() {
                   </div>
                   
                   <div>
-                    <label htmlFor="album" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label htmlFor="album" className="block text-sm font-medium text-slate-700 mb-1">
                       Album
                     </label>
-                    <p className="text-xs text-gray-500 mb-1">Upload images for your event (max 3)</p>
+                    <p className="text-xs text-slate-500 mb-1">Upload images for your event (max 3)</p>
                     
                     {/* Hidden file input for album images */}
                     <input 
@@ -624,7 +655,7 @@ function CreateEventContent() {
                     <div className="flex gap-4 mt-2 flex-wrap">
                       {/* Album image previews */}
                       {albumImageUrls.map((url, index) => (
-                        <div key={index} className="w-16 h-16 bg-gray-200 rounded-md relative overflow-hidden">
+                        <div key={index} className="w-16 h-16 bg-slate-200 rounded-md relative overflow-hidden">
                           <Image 
                             src={url} 
                             alt={`Album image ${index + 1}`} 
@@ -643,9 +674,9 @@ function CreateEventContent() {
                       
                       {/* Loading spinner for uploading */}
                       {uploadingAlbum && (
-                        <div className="w-16 h-16 bg-gray-200 rounded-md relative overflow-hidden">
+                        <div className="w-16 h-16 bg-slate-200 rounded-md relative overflow-hidden">
                           <div className="absolute inset-0 flex items-center justify-center">
-                            <svg className="animate-spin h-5 w-5 text-pink-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <svg className="animate-spin h-5 w-5 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
@@ -656,10 +687,10 @@ function CreateEventContent() {
                       {/* Add more button */}
                       {albumImages.length < 3 && !uploadingAlbum && (
                         <div 
-                          className="w-16 h-16 border-2 border-dashed border-gray-300 rounded-md flex items-center justify-center cursor-pointer hover:border-pink-300"
+                          className="w-16 h-16 border-2 border-dashed border-slate-300 rounded-md flex items-center justify-center cursor-pointer hover:border-indigo-300"
                           onClick={handleAlbumUploadClick}
                         >
-                          <button type="button" className="text-gray-400 hover:text-pink-500">
+                          <button type="button" className="text-slate-400 hover:text-indigo-500">
                             <svg className="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                             </svg>
@@ -667,7 +698,7 @@ function CreateEventContent() {
                         </div>
                       )}
                     </div>
-                    <div className="mt-2 text-xs text-gray-500">
+                    <div className="mt-2 text-xs text-slate-500">
                       Click to upload. Max 3 images. Recommended size: 800 x 600 pixels. Max size: 5MB each.
                     </div>
                   </div>
@@ -675,13 +706,13 @@ function CreateEventContent() {
               </div>
               
               {/* Location and Time Section */}
-              <div id="location-and-time" className="bg-white rounded-lg p-6 shadow-sm">
+              <div id="location-and-time" className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
-                    <span className="text-pink-500 text-xl">📍</span>
-                    <h2 className="text-lg font-medium">Location and time</h2>
+                    <span className="text-indigo-600 text-xl">📍</span>
+                    <h2 className="text-lg font-medium text-slate-800">Location and time</h2>
                   </div>
-                  <button type="button" className="text-gray-400">
+                  <button type="button" className="text-slate-400">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                     </svg>
@@ -691,12 +722,12 @@ function CreateEventContent() {
                 <div className="space-y-6">
                   {/* Location */}
                   <div>
-                    <h3 className="text-sm font-medium text-gray-700 mb-1">Location</h3>
-                    <p className="text-xs text-gray-500 mb-4">You can choose the location or pinpoint it on the map</p>
+                    <h3 className="text-sm font-medium text-slate-700 mb-1">Location</h3>
+                    <p className="text-xs text-slate-500 mb-4">You can choose the location or pinpoint it on the map</p>
                     
                     <div className="space-y-4">
                       <div>
-                        <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1">
+                        <label htmlFor="address" className="block text-sm font-medium text-slate-700 mb-1">
                           Address
                         </label>
                         <input
@@ -705,13 +736,13 @@ function CreateEventContent() {
                           value={address}
                           onChange={(e) => setAddress(e.target.value)}
                           placeholder="Address"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-pink-500"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
                         />
                       </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label htmlFor="city" className="block text-sm font-medium text-gray-700 mb-1">
+                          <label htmlFor="city" className="block text-sm font-medium text-slate-700 mb-1">
                             City
                           </label>
                           <input
@@ -720,12 +751,12 @@ function CreateEventContent() {
                             value={city}
                             onChange={(e) => setCity(e.target.value)}
                             placeholder="City"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-pink-500"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
                           />
                         </div>
                         
                         <div>
-                          <label htmlFor="state" className="block text-sm font-medium text-gray-700 mb-1">
+                          <label htmlFor="state" className="block text-sm font-medium text-slate-700 mb-1">
                             State / Province
                           </label>
                           <div className="relative">
@@ -733,7 +764,7 @@ function CreateEventContent() {
                               id="state"
                               value={state}
                               onChange={(e) => setState(e.target.value)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-pink-500 appearance-none"
+                              className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 appearance-none"
                             >
                               <option value="">Select state</option>
                               <option value="AL">Alabama</option>
@@ -743,7 +774,7 @@ function CreateEventContent() {
                               <option value="TX">Texas</option>
                             </select>
                             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                              <svg className="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                                 <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                               </svg>
                             </div>
@@ -752,7 +783,7 @@ function CreateEventContent() {
                       </div>
                       
                       <div>
-                        <label htmlFor="country" className="block text-sm font-medium text-gray-700 mb-1">
+                        <label htmlFor="country" className="block text-sm font-medium text-slate-700 mb-1">
                           Country / Region
                         </label>
                         <div className="relative">
@@ -760,7 +791,7 @@ function CreateEventContent() {
                             id="country"
                             value={country}
                             onChange={(e) => setCountry(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-pink-500 appearance-none"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 appearance-none"
                           >
                             <option value="">Select</option>
                             <option value="us">United States</option>
@@ -769,7 +800,7 @@ function CreateEventContent() {
                             <option value="au">Australia</option>
                           </select>
                           <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                            <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <svg className="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                               <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                             </svg>
                           </div>
@@ -778,13 +809,13 @@ function CreateEventContent() {
                     </div>
                     
                     {/* Map */}
-                    <div className="mt-4 h-48 bg-gray-200 rounded-md relative overflow-hidden">
-                      <div className="absolute inset-0 flex items-center justify-center text-gray-500">
+                    <div className="mt-4 h-48 bg-slate-200 rounded-md relative overflow-hidden">
+                      <div className="absolute inset-0 flex items-center justify-center text-slate-500">
                         Map will be displayed here
                       </div>
                       <button 
                         type="button" 
-                        className="absolute top-2 right-2 bg-pink-500 text-white px-3 py-1 rounded-md text-sm hover:bg-pink-600"
+                        className="absolute top-2 right-2 bg-indigo-500 text-white px-3 py-1 rounded-md text-sm hover:bg-indigo-600"
                       >
                         Add location
                       </button>
@@ -793,18 +824,18 @@ function CreateEventContent() {
                   
                   {/* Time */}
                   <div>
-                    <h3 className="text-sm font-medium text-gray-700 mb-1">Time</h3>
-                    <p className="text-xs text-gray-500 mb-4">Choose the start and end time for your event</p>
+                    <h3 className="text-sm font-medium text-slate-700 mb-1">Time</h3>
+                    <p className="text-xs text-slate-500 mb-4">Choose the start and end time for your event</p>
                     
                     <div className="space-y-4">
                       <div>
-                        <label htmlFor="timeZone" className="block text-sm font-medium text-gray-700 mb-1">
+                        <label htmlFor="timeZone" className="block text-sm font-medium text-slate-700 mb-1">
                           Time Zone
                         </label>
                         <div className="relative">
                           <select
                             id="timeZone"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-pink-500 appearance-none"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 appearance-none"
                           >
                             <option>PDT (GMT-0800) United States (Los Angeles)</option>
                             <option>EDT (GMT-0400) United States (New York)</option>
@@ -812,7 +843,7 @@ function CreateEventContent() {
                             <option>CET (GMT+0100) France (Paris)</option>
                           </select>
                           <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                            <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <svg className="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                               <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                             </svg>
                           </div>
@@ -821,7 +852,7 @@ function CreateEventContent() {
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label htmlFor="eventDate" className="block text-sm font-medium text-gray-700 mb-1">
+                          <label htmlFor="eventDate" className="block text-sm font-medium text-slate-700 mb-1">
                             Event Date
                           </label>
                           <div className="relative">
@@ -830,10 +861,10 @@ function CreateEventContent() {
                               id="eventDate"
                               value={eventDate}
                               onChange={(e) => setEventDate(e.target.value)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-pink-500"
+                              className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
                             />
                             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <svg className="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                               </svg>
                             </div>
@@ -843,7 +874,7 @@ function CreateEventContent() {
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label htmlFor="startTime" className="block text-sm font-medium text-gray-700 mb-1">
+                          <label htmlFor="startTime" className="block text-sm font-medium text-slate-700 mb-1">
                             Start Time
                           </label>
                           <div className="relative">
@@ -852,10 +883,10 @@ function CreateEventContent() {
                               id="startTime"
                               value={startTime}
                               onChange={(e) => setStartTime(e.target.value)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-pink-500"
+                              className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
                             />
                             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <svg className="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                               </svg>
                             </div>
@@ -863,7 +894,7 @@ function CreateEventContent() {
                         </div>
                         
                         <div>
-                          <label htmlFor="endTime" className="block text-sm font-medium text-gray-700 mb-1">
+                          <label htmlFor="endTime" className="block text-sm font-medium text-slate-700 mb-1">
                             End Time
                           </label>
                           <div className="relative">
@@ -872,10 +903,10 @@ function CreateEventContent() {
                               id="endTime"
                               value={endTime}
                               onChange={(e) => setEndTime(e.target.value)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-pink-500"
+                              className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
                             />
                             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <svg className="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                               </svg>
                             </div>
@@ -886,7 +917,7 @@ function CreateEventContent() {
                       <div className="flex items-center mt-4">
                         <button 
                           type="button" 
-                          className="bg-pink-100 text-pink-500 px-3 py-1 rounded-md text-sm hover:bg-pink-200 flex items-center"
+                          className="bg-indigo-100 text-indigo-500 px-3 py-1 rounded-md text-sm hover:bg-indigo-200 flex items-center"
                         >
                           <svg className="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -906,9 +937,9 @@ function CreateEventContent() {
                         name="visibility"
                         checked={isPublic}
                         onChange={() => setIsPublic(true)}
-                        className="h-4 w-4 text-pink-500 focus:ring-pink-400"
+                        className="h-4 w-4 text-indigo-500 focus:ring-indigo-400"
                       />
-                      <label htmlFor="public" className="ml-2 text-sm font-medium text-gray-700">
+                      <label htmlFor="public" className="ml-2 text-sm font-medium text-slate-700">
                         Public
                       </label>
                     </div>
@@ -919,10 +950,12 @@ function CreateEventContent() {
                         id="private"
                         name="visibility"
                         checked={!isPublic}
-                        onChange={() => setIsPublic(false)}
-                        className="h-4 w-4 text-pink-500 focus:ring-pink-400"
+                        onChange={() => {
+                          router.push('/private-event');
+                        }}
+                        className="h-4 w-4 text-indigo-500 focus:ring-indigo-400"
                       />
-                      <label htmlFor="private" className="ml-2 text-sm font-medium text-gray-700">
+                      <label htmlFor="private" className="ml-2 text-sm font-medium text-slate-700">
                         Private
                       </label>
                     </div>
@@ -931,13 +964,13 @@ function CreateEventContent() {
               </div>
               
               {/* Ticket Section */}
-              <div id="ticket" className="bg-white rounded-lg p-6 shadow-sm">
+              <div id="ticket" className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
-                    <span className="text-pink-500 text-xl">🎟️</span>
-                    <h2 className="text-lg font-medium">Ticket</h2>
+                    <span className="text-indigo-600 text-xl">🎟️</span>
+                    <h2 className="text-lg font-medium text-slate-800">Ticket</h2>
                   </div>
-                  <button type="button" className="text-gray-400">
+                  <button type="button" className="text-slate-400">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                     </svg>
@@ -955,9 +988,9 @@ function CreateEventContent() {
                           name="ticketType"
                           checked={isPaid}
                           onChange={() => setIsPaid(true)}
-                          className="h-4 w-4 text-pink-500 focus:ring-pink-400"
+                          className="h-4 w-4 text-indigo-500 focus:ring-indigo-400"
                         />
-                        <label htmlFor="paid" className="ml-2 text-sm font-medium text-gray-700">
+                        <label htmlFor="paid" className="ml-2 text-sm font-medium text-slate-700">
                           Paid
                         </label>
                       </div>
@@ -969,9 +1002,9 @@ function CreateEventContent() {
                           name="ticketType"
                           checked={!isPaid}
                           onChange={() => setIsPaid(false)}
-                          className="h-4 w-4 text-pink-500 focus:ring-pink-400"
+                          className="h-4 w-4 text-indigo-500 focus:ring-indigo-400"
                         />
-                        <label htmlFor="free" className="ml-2 text-sm font-medium text-gray-700">
+                        <label htmlFor="free" className="ml-2 text-sm font-medium text-slate-700">
                           Free
                         </label>
                       </div>
@@ -984,9 +1017,9 @@ function CreateEventContent() {
                           <input
                             type="checkbox"
                             id="tierOne"
-                            className="h-4 w-4 text-pink-500 focus:ring-pink-400 rounded"
+                            className="h-4 w-4 text-indigo-500 focus:ring-indigo-400 rounded"
                           />
-                          <label htmlFor="tierOne" className="ml-2 text-sm font-medium text-gray-700">
+                          <label htmlFor="tierOne" className="ml-2 text-sm font-medium text-slate-700">
                             Tier one
                           </label>
                         </div>
@@ -995,9 +1028,9 @@ function CreateEventContent() {
                           <input
                             type="checkbox"
                             id="tierTwo"
-                            className="h-4 w-4 text-pink-500 focus:ring-pink-400 rounded"
+                            className="h-4 w-4 text-indigo-500 focus:ring-indigo-400 rounded"
                           />
-                          <label htmlFor="tierTwo" className="ml-2 text-sm font-medium text-gray-700">
+                          <label htmlFor="tierTwo" className="ml-2 text-sm font-medium text-slate-700">
                             Tier two
                           </label>
                         </div>
@@ -1006,9 +1039,9 @@ function CreateEventContent() {
                           <input
                             type="checkbox"
                             id="vipTier"
-                            className="h-4 w-4 text-pink-500 focus:ring-pink-400 rounded"
+                            className="h-4 w-4 text-indigo-500 focus:ring-indigo-400 rounded"
                           />
-                          <label htmlFor="vipTier" className="ml-2 text-sm font-medium text-gray-700">
+                          <label htmlFor="vipTier" className="ml-2 text-sm font-medium text-slate-700">
                             VIP tier
                           </label>
                         </div>
@@ -1016,10 +1049,10 @@ function CreateEventContent() {
                     </div>
                     
                     {/* Quantity and Price */}
-                    {isPaid && (
+                    {isPaid ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                         <div>
-                          <label htmlFor="quantity" className="block text-sm font-medium text-gray-700 mb-1">
+                          <label htmlFor="quantity" className="block text-sm font-medium text-slate-700 mb-1">
                             Quantity
                           </label>
                           <input
@@ -1029,61 +1062,79 @@ function CreateEventContent() {
                             onChange={(e) => setQuantity(e.target.value)}
                             placeholder="200"
                             min="1"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-pink-500"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
                           />
                         </div>
                         
                         <div>
-                          <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-1">
-                            Price $
+                          <label htmlFor="price" className="block text-sm font-medium text-slate-700 mb-1">
+                            Price ₦
                           </label>
                           <input
                             type="number"
                             id="price"
                             value={price}
                             onChange={(e) => setPrice(e.target.value)}
-                            placeholder="50"
+                            placeholder="5000"
                             min="0"
                             step="0.01"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-pink-500"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
                           />
                         </div>
+                      </div>
+                    ) : (
+                      <div className="mb-6">
+                        <label htmlFor="freeQuantity" className="block text-sm font-medium text-slate-700 mb-1">
+                          Free Ticket Quantity
+                        </label>
+                        <input
+                          type="number"
+                          id="freeQuantity"
+                          value={quantity}
+                          onChange={(e) => setQuantity(e.target.value)}
+                          placeholder="200"
+                          min="1"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
                       </div>
                     )}
                     
                     {/* Discounts */}
-                    <div>
-                      <h3 className="text-sm font-medium text-gray-700 mb-1">Discounts</h3>
-                      <p className="text-xs text-gray-500 mb-4">Set the conditions for your discounts</p>
+                    <div className="mt-6">
+                      <h3 className="text-sm font-medium text-slate-700 mb-1">Discounts</h3>
+                      <p className="text-xs text-slate-500 mb-4">Set the conditions for your discounts</p>
                       
                       <div className="space-y-4">
                         {/* Early Bird */}
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            id="earlyBird"
-                            className="h-4 w-4 text-pink-500 focus:ring-pink-400 rounded"
-                          />
-                          <label htmlFor="earlyBird" className="ml-2 text-sm font-medium text-gray-700">
-                            Early bird buys
-                          </label>
-                          <div className="ml-4 flex items-center">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                          <div className="flex items-center min-w-[150px]">
+                            <input
+                              type="checkbox"
+                              id="earlyBird"
+                              className="h-4 w-4 text-indigo-500 focus:ring-indigo-400 rounded"
+                            />
+                            <label htmlFor="earlyBird" className="ml-2 text-sm font-medium text-slate-700">
+                              Early bird buys
+                            </label>
+                          </div>
+                          <div className="flex flex-col sm:flex-row gap-2 w-full">
                             <input
                               type="number"
-                              placeholder="number of days to qualify"
-                              className="w-48 px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-pink-500 text-sm"
+                              placeholder="Days to qualify"
+                              className="flex-1 px-3 py-1 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 text-sm"
+                              min="1"
                             />
-                            <div className="relative ml-2">
+                            <div className="relative w-full sm:w-32">
                               <select
-                                className="w-32 px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-pink-500 appearance-none text-sm"
+                                className="w-full px-3 py-1 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 appearance-none text-sm bg-white"
                               >
-                                <option>discount</option>
-                                <option>10% off</option>
-                                <option>20% off</option>
-                                <option>30% off</option>
+                                <option value="">Select discount</option>
+                                <option value="10">10% off</option>
+                                <option value="20">20% off</option>
+                                <option value="30">30% off</option>
                               </select>
-                              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                                <svg className="h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                              <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                                <svg className="h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                                   <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                                 </svg>
                               </div>
@@ -1092,32 +1143,35 @@ function CreateEventContent() {
                         </div>
                         
                         {/* Multiple Buys */}
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            id="multipleBuys"
-                            className="h-4 w-4 text-pink-500 focus:ring-pink-400 rounded"
-                          />
-                          <label htmlFor="multipleBuys" className="ml-2 text-sm font-medium text-gray-700">
-                            Multiple buys
-                          </label>
-                          <div className="ml-4 flex items-center">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                          <div className="flex items-center min-w-[150px]">
+                            <input
+                              type="checkbox"
+                              id="multipleBuys"
+                              className="h-4 w-4 text-indigo-500 focus:ring-indigo-400 rounded"
+                            />
+                            <label htmlFor="multipleBuys" className="ml-2 text-sm font-medium text-slate-700">
+                              Multiple buys
+                            </label>
+                          </div>
+                          <div className="flex flex-col sm:flex-row gap-2 w-full">
                             <input
                               type="number"
-                              placeholder="number of tickets to qualify"
-                              className="w-48 px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-pink-500 text-sm"
+                              placeholder="Tickets to qualify"
+                              className="flex-1 px-3 py-1 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 text-sm"
+                              min="1"
                             />
-                            <div className="relative ml-2">
+                            <div className="relative w-full sm:w-32">
                               <select
-                                className="w-32 px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-pink-500 appearance-none text-sm"
+                                className="w-full px-3 py-1 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 appearance-none text-sm bg-white"
                               >
-                                <option>discount</option>
-                                <option>10% off</option>
-                                <option>20% off</option>
-                                <option>30% off</option>
+                                <option value="">Select discount</option>
+                                <option value="10">10% off</option>
+                                <option value="20">20% off</option>
+                                <option value="30">30% off</option>
                               </select>
-                              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                                <svg className="h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                              <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                                <svg className="h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                                   <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                                 </svg>
                               </div>
@@ -1129,22 +1183,22 @@ function CreateEventContent() {
                     
                     {/* Sale Date */}
                     <div className="mt-6">
-                      <h3 className="text-sm font-medium text-gray-700 mb-1">Sale date</h3>
-                      <p className="text-xs text-gray-500 mb-4">Set the sale time when your audience is able to purchase the tickets</p>
+                      <h3 className="text-sm font-medium text-slate-700 mb-1">Sale date</h3>
+                      <p className="text-xs text-slate-500 mb-4">Set the sale time when your audience is able to purchase the tickets</p>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <div>
-                          <label htmlFor="saleStartDate" className="block text-sm font-medium text-gray-700 mb-1">
+                          <label htmlFor="saleStartDate" className="block text-sm font-medium text-slate-700 mb-1">
                             Start Date
                           </label>
                           <div className="relative">
                             <input
                               type="date"
                               id="saleStartDate"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-pink-500"
+                              className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
                             />
                             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <svg className="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                               </svg>
                             </div>
@@ -1152,17 +1206,17 @@ function CreateEventContent() {
                         </div>
                         
                         <div>
-                          <label htmlFor="saleStartTime" className="block text-sm font-medium text-gray-700 mb-1">
+                          <label htmlFor="saleStartTime" className="block text-sm font-medium text-slate-700 mb-1">
                             Start Time
                           </label>
                           <div className="relative">
                             <input
                               type="time"
                               id="saleStartTime"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-pink-500"
+                              className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
                             />
                             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <svg className="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                               </svg>
                             </div>
@@ -1172,17 +1226,17 @@ function CreateEventContent() {
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label htmlFor="saleEndDate" className="block text-sm font-medium text-gray-700 mb-1">
+                          <label htmlFor="saleEndDate" className="block text-sm font-medium text-slate-700 mb-1">
                             End Date
                           </label>
                           <div className="relative">
                             <input
                               type="date"
                               id="saleEndDate"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-pink-500"
+                              className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
                             />
                             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <svg className="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                               </svg>
                             </div>
@@ -1190,17 +1244,17 @@ function CreateEventContent() {
                         </div>
                         
                         <div>
-                          <label htmlFor="saleEndTime" className="block text-sm font-medium text-gray-700 mb-1">
+                          <label htmlFor="saleEndTime" className="block text-sm font-medium text-slate-700 mb-1">
                             End Time
                           </label>
                           <div className="relative">
                             <input
                               type="time"
                               id="saleEndTime"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-pink-500"
+                              className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
                             />
                             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <svg className="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                               </svg>
                             </div>
@@ -1212,7 +1266,7 @@ function CreateEventContent() {
                     {/* Promotion */}
                     <div className="mt-6">
                       <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-sm font-medium text-gray-700">Promotion</h3>
+                        <h3 className="text-sm font-medium text-slate-700">Promotion</h3>
                         <div className="relative inline-block w-10 mr-2 align-middle select-none">
                           <input 
                             type="checkbox" 
@@ -1221,7 +1275,7 @@ function CreateEventContent() {
                           />
                           <label 
                             htmlFor="promotion"
-                            className="block h-6 w-12 rounded-full bg-gray-200 cursor-pointer"
+                            className="block h-6 w-12 rounded-full bg-slate-200 cursor-pointer"
                           ></label>
                           <span 
                             className="absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ease-in-out"
@@ -1237,14 +1291,14 @@ function CreateEventContent() {
               <div className="flex justify-end space-x-4">
                 <button
                   type="button"
-                  className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                  className="px-6 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors duration-300"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isLoading || uploadingCover}
-                  className="px-6 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600 flex items-center"
+                  className="px-6 py-2 bg-gradient-to-r from-indigo-600 to-blue-500 text-white rounded-lg hover:from-indigo-700 hover:to-blue-600 transition-all duration-300 shadow-md flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isLoading ? (
                     <>
@@ -1259,7 +1313,7 @@ function CreateEventContent() {
               </div>
               
               {error && (
-                <div className="mt-4 p-3 bg-red-100 text-red-700 rounded-md">
+                <div className="mt-4 p-4 bg-red-50 text-red-700 rounded-xl border border-red-100">
                   {error}
                 </div>
               )}

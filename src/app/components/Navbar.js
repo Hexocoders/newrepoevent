@@ -78,17 +78,56 @@ export default function Navbar() {
   // Check if user is logged in (either from context or localStorage)
   const isLoggedIn = !!userData || !!user;
 
+  const navItems = [
+    { label: 'Home', href: '/' },
+    { label: 'Explore', href: '/explore' },
+    { label: 'My Tickets', href: '/my-tickets' },
+    { label: 'Contact', href: '/contact' },
+  ];
+
   return (
     <>
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap');
+        
+        @keyframes navShine {
+          0% {
+            transform: translateX(-100%) rotate(5deg);
+          }
+          100% {
+            transform: translateX(100%) rotate(5deg);
+          }
+        }
+        
+        .nav-shine-effect {
+          background: linear-gradient(
+            90deg, 
+            rgba(255, 255, 255, 0) 0%, 
+            rgba(255, 255, 255, 0.05) 25%, 
+            rgba(255, 255, 255, 0.1) 50%, 
+            rgba(255, 255, 255, 0.05) 75%, 
+            rgba(255, 255, 255, 0) 100%
+          );
+          animation: navShine 6s infinite linear;
+        }
+        
+        @media (prefers-reduced-motion) {
+          .nav-shine-effect {
+            animation: none;
+          }
+        }
       `}</style>
       <header 
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          scrolled ? 'bg-white/95 backdrop-blur-sm shadow-md py-3' : 'bg-white py-4 border-b border-gray-100'
+          scrolled ? 'bg-black/95 backdrop-blur-sm shadow-md py-3 text-white' : 'bg-white py-4 border-b border-gray-100'
         }`}
       >
-        <div className="w-full px-0 flex justify-between items-center">
+        {/* Shine Effect */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="nav-shine-effect absolute -inset-[100%] w-[300%] h-[300%] rotate-12"></div>
+        </div>
+        
+        <div className="w-full px-0 flex justify-between items-center relative z-10">
           {/* Logo at extreme left with no padding */}
           <div className="pl-4 md:pl-8">
             <Link href="/" className="flex items-center group">
@@ -108,19 +147,20 @@ export default function Navbar() {
 
           {/* Desktop Navigation - pushed to the right */}
           <div className="hidden md:flex items-center gap-6 pr-4 md:pr-8">
-            <NavLink href="/" isActive={pathname === '/'}>Home</NavLink>
-            <NavLink href="/explore" isActive={pathname === '/explore'}>Explore</NavLink>
-            <NavLink href="/upcoming-events" isActive={pathname === '/upcoming-events'}>Upcoming Events</NavLink>
-            <NavLink href="/categories" isActive={pathname === '/categories'}>Categories</NavLink>
-            <NavLink href="/new-events" isActive={pathname === '/new-events'}>New Events</NavLink>
+            <NavLink href="/" isActive={pathname === '/'} isScrolled={scrolled}>Home</NavLink>
+            <NavLink href="/explore" isActive={pathname === '/explore'} isScrolled={scrolled}>Explore</NavLink>
+            <NavLink href="/my-tickets" isActive={pathname === '/my-tickets'} isScrolled={scrolled}>My Tickets</NavLink>
+            <NavLink href="/upcoming-events" isActive={pathname === '/upcoming-events'} isScrolled={scrolled}>Upcoming Events</NavLink>
+            <NavLink href="/categories" isActive={pathname === '/categories'} isScrolled={scrolled}>Categories</NavLink>
+            <NavLink href="/new-events" isActive={pathname === '/new-events'} isScrolled={scrolled}>New Events</NavLink>
             
             {isLoggedIn ? (
               <div className="relative" ref={dropdownRef}>
                 <button
                   onClick={toggleDropdown}
-                  className="flex items-center gap-2 text-gray-700 hover:text-pink-500 focus:outline-none"
+                  className={`flex items-center gap-2 ${scrolled ? 'text-gray-300 hover:text-white' : 'text-gray-700 hover:text-black'} focus:outline-none`}
                 >
-                  <div className="w-9 h-9 rounded-full bg-blue-500 flex items-center justify-center text-white font-medium">
+                  <div className="w-9 h-9 rounded-full bg-black flex items-center justify-center text-white font-medium">
                     {initials}
                   </div>
                   <svg 
@@ -135,7 +175,7 @@ export default function Navbar() {
                 
                 {/* Dropdown Menu */}
                 {dropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-100">
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-[100] border border-gray-100">
                     <div className="px-4 py-2 border-b border-gray-100">
                       <p className="text-sm font-medium text-gray-900 truncate">{firstName}</p>
                     </div>
@@ -164,10 +204,10 @@ export default function Navbar() {
               </div>
             ) : (
               <>
-                <NavLink href="/signin" isActive={pathname === '/signin'}>Log in</NavLink>
+                <NavLink href="/signin" isActive={pathname === '/signin'} isScrolled={scrolled}>Log in</NavLink>
                 <Link 
                   href="/signup" 
-                  className="bg-gray-900 text-white px-6 py-2 rounded-md hover:bg-gray-800 transition-all duration-300 transform hover:-translate-y-0.5 hover:shadow-md"
+                  className="bg-black text-white px-6 py-2 rounded-md hover:bg-gray-800 transition-all duration-300 transform hover:-translate-y-0.5 hover:shadow-md"
                 >
                   Sign up
                 </Link>
@@ -179,7 +219,7 @@ export default function Navbar() {
           <div className="md:hidden pr-4">
             <button
               onClick={() => setIsOpen(!isOpen)}
-              className="text-gray-600 hover:text-gray-900 focus:outline-none p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              className={`${scrolled ? 'text-white hover:text-gray-200' : 'text-gray-600 hover:text-gray-900'} focus:outline-none p-2 rounded-lg ${scrolled ? 'hover:bg-white/10' : 'hover:bg-gray-100'} transition-colors`}
               aria-label="Toggle menu"
             >
               <svg
@@ -199,48 +239,51 @@ export default function Navbar() {
 
         {/* Mobile Navigation */}
         <div 
-          className={`md:hidden absolute top-full left-0 right-0 bg-white/95 backdrop-blur-sm shadow-lg overflow-hidden transition-all duration-300 ${
-            isOpen ? 'max-h-96 border-b border-gray-100' : 'max-h-0'
-          }`}
+          className={`md:hidden absolute top-full left-0 right-0 ${scrolled ? 'bg-black/95 text-white' : 'bg-white/95'} backdrop-blur-sm shadow-lg z-[60] ${
+            isOpen ? 'max-h-[80vh] overflow-y-auto border-b border-gray-100/20' : 'max-h-0 overflow-hidden'
+          } transition-all duration-300`}
         >
           <div className="flex flex-col space-y-3 px-4 py-5">
-            <MobileNavLink href="/" isActive={pathname === '/'} onClick={() => setIsOpen(false)}>
+            <MobileNavLink href="/" isActive={pathname === '/'} onClick={() => setIsOpen(false)} isScrolled={scrolled}>
               Home
             </MobileNavLink>
-            <MobileNavLink href="/explore" isActive={pathname === '/explore'} onClick={() => setIsOpen(false)}>
+            <MobileNavLink href="/explore" isActive={pathname === '/explore'} onClick={() => setIsOpen(false)} isScrolled={scrolled}>
               Explore
             </MobileNavLink>
-            <MobileNavLink href="/upcoming-events" isActive={pathname === '/upcoming-events'} onClick={() => setIsOpen(false)}>
+            <MobileNavLink href="/my-tickets" isActive={pathname === '/my-tickets'} onClick={() => setIsOpen(false)} isScrolled={scrolled}>
+              My Tickets
+            </MobileNavLink>
+            <MobileNavLink href="/upcoming-events" isActive={pathname === '/upcoming-events'} onClick={() => setIsOpen(false)} isScrolled={scrolled}>
               Upcoming Events
             </MobileNavLink>
-            <MobileNavLink href="/categories" isActive={pathname === '/categories'} onClick={() => setIsOpen(false)}>
+            <MobileNavLink href="/categories" isActive={pathname === '/categories'} onClick={() => setIsOpen(false)} isScrolled={scrolled}>
               Categories
             </MobileNavLink>
-            <MobileNavLink href="/new-events" isActive={pathname === '/new-events'} onClick={() => setIsOpen(false)}>
+            <MobileNavLink href="/new-events" isActive={pathname === '/new-events'} onClick={() => setIsOpen(false)} isScrolled={scrolled}>
               New Events
             </MobileNavLink>
-            <div className="h-px w-full bg-gray-100 my-2"></div>
+            <div className={`h-px w-full ${scrolled ? 'bg-gray-700/30' : 'bg-gray-100'} my-2`}></div>
             
             {isLoggedIn ? (
               <>
                 {/* User info in mobile menu */}
                 <div className="px-2 py-2">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-medium text-sm">
+                    <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-white font-medium text-sm">
                       {initials}
                     </div>
-                    <p className="text-sm font-medium text-gray-900 truncate">{firstName}</p>
+                    <p className={`text-sm font-medium ${scrolled ? 'text-gray-200' : 'text-gray-900'} truncate`}>{firstName}</p>
                   </div>
                 </div>
-                <MobileNavLink href="/dashboard" isActive={pathname === '/dashboard'} onClick={() => setIsOpen(false)}>
+                <MobileNavLink href="/dashboard" isActive={pathname === '/dashboard'} onClick={() => setIsOpen(false)} isScrolled={scrolled}>
                   Dashboard
                 </MobileNavLink>
-                <MobileNavLink href="/profile" isActive={pathname === '/profile'} onClick={() => setIsOpen(false)}>
+                <MobileNavLink href="/profile" isActive={pathname === '/profile'} onClick={() => setIsOpen(false)} isScrolled={scrolled}>
                   Profile
                 </MobileNavLink>
                 <button
                   onClick={handleSignOut}
-                  className="px-2 py-2 rounded-lg text-red-600 hover:bg-gray-50 transition-colors text-left flex items-center"
+                  className={`px-2 py-2 rounded-lg text-red-600 ${scrolled ? 'hover:bg-white/10' : 'hover:bg-gray-50'} transition-colors text-left flex items-center`}
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-red-500 mr-2 opacity-0"></span>
                   Sign out
@@ -248,12 +291,12 @@ export default function Navbar() {
               </>
             ) : (
               <>
-                <MobileNavLink href="/signin" isActive={pathname === '/signin'} onClick={() => setIsOpen(false)}>
+                <MobileNavLink href="/signin" isActive={pathname === '/signin'} onClick={() => setIsOpen(false)} isScrolled={scrolled}>
                   Log in
                 </MobileNavLink>
                 <Link
                   href="/signup"
-                  className="bg-gray-900 text-white px-4 py-2 rounded-md hover:bg-gray-800 transition-colors text-center font-medium"
+                  className="bg-black text-white px-4 py-2 rounded-md hover:bg-gray-800 transition-colors text-center font-medium"
                   onClick={() => setIsOpen(false)}
                 >
                   Sign up
@@ -271,17 +314,19 @@ export default function Navbar() {
 }
 
 // Desktop Navigation Link Component with subtle animation and active state
-function NavLink({ href, children, isActive }) {
+function NavLink({ href, children, isActive, isScrolled }) {
   return (
     <Link 
       href={href} 
       className={`relative py-2 transition-colors duration-300 group ${
-        isActive ? 'text-blue-600 font-medium' : 'text-gray-600 hover:text-blue-600'
+        isActive 
+          ? isScrolled ? 'text-white font-medium' : 'text-black font-medium' 
+          : isScrolled ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-black'
       }`}
     >
       {children}
       <span 
-        className={`absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 transition-transform duration-300 origin-left ${
+        className={`absolute bottom-0 left-0 w-full h-0.5 ${isScrolled ? 'bg-white' : 'bg-black'} transition-transform duration-300 origin-left ${
           isActive ? 'transform scale-x-100' : 'transform scale-x-0 group-hover:scale-x-100'
         }`}
       ></span>
@@ -290,17 +335,19 @@ function NavLink({ href, children, isActive }) {
 }
 
 // Mobile Navigation Link Component with subtle animation and active state
-function MobileNavLink({ href, onClick, children, isActive }) {
+function MobileNavLink({ href, onClick, children, isActive, isScrolled }) {
   return (
     <Link
       href={href}
       className={`px-2 py-2 rounded-lg transition-colors duration-300 flex items-center ${
-        isActive ? 'text-blue-600 font-medium bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
+        isActive 
+          ? isScrolled ? 'text-white font-medium bg-white/10' : 'text-black font-medium bg-gray-50' 
+          : isScrolled ? 'text-gray-300 hover:text-white hover:bg-white/10' : 'text-gray-600 hover:text-black hover:bg-gray-50'
       }`}
       onClick={onClick}
     >
       <span 
-        className={`w-1.5 h-1.5 rounded-full bg-blue-600 mr-2 ${
+        className={`w-1.5 h-1.5 rounded-full ${isScrolled ? 'bg-white' : 'bg-black'} mr-2 ${
           isActive ? 'opacity-100' : 'opacity-0'
         } transition-opacity duration-300`}
       ></span>

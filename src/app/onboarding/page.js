@@ -129,65 +129,65 @@ function OnboardingContent() {
 
   // Handle OAuth redirects
   const handleOAuthRedirect = useCallback(async () => {
-    try {
-      // Check if this is an OAuth redirect
-      const { data, error } = await supabase.auth.getSession();
-      
-      if (error) {
-        console.log('Error getting session:', error.message);
-        return;
-      }
-      
-      if (!data || !data.session) {
-        console.log('No active session found');
-        return;
-      }
-      
-      const user = data.session.user;
-      
-      // Only handle OAuth users
-      if (user.app_metadata?.provider) {
-        console.log('Processing OAuth user:', user.email);
+      try {
+        // Check if this is an OAuth redirect
+        const { data, error } = await supabase.auth.getSession();
         
-        // Get the user's profile from the profiles table
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single();
-          
-        if (profileError) {
-          console.error('Error fetching user profile:', profileError);
+        if (error) {
+          console.log('Error getting session:', error.message);
           return;
         }
         
-        // Store user data in localStorage
-        localStorage.setItem('user', JSON.stringify({
-          id: user.id,
-          email: user.email,
-          first_name: profile?.first_name || user.user_metadata?.full_name?.split(' ')[0] || '',
-          last_name: profile?.last_name || user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
+        if (!data || !data.session) {
+          console.log('No active session found');
+          return;
+        }
+        
+        const user = data.session.user;
+        
+        // Only handle OAuth users
+        if (user.app_metadata?.provider) {
+          console.log('Processing OAuth user:', user.email);
+          
+          // Get the user's profile from the profiles table
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .single();
+            
+          if (profileError) {
+            console.error('Error fetching user profile:', profileError);
+            return;
+          }
+          
+          // Store user data in localStorage
+          localStorage.setItem('user', JSON.stringify({
+            id: user.id,
+            email: user.email,
+            first_name: profile?.first_name || user.user_metadata?.full_name?.split(' ')[0] || '',
+            last_name: profile?.last_name || user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
           phone_number: profile?.phone_number || '',
           bio: profile?.bio || '',
           preferences: profile?.preferences || {}
-        }));
-        
-        console.log('User profile stored in localStorage');
-        
-        // Pre-fill form with profile data
-        setUserData({
-          firstName: profile?.first_name || user.user_metadata?.full_name?.split(' ')[0] || '',
-          lastName: profile?.last_name || user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
+          }));
+          
+          console.log('User profile stored in localStorage');
+          
+          // Pre-fill form with profile data
+          setUserData({
+            firstName: profile?.first_name || user.user_metadata?.full_name?.split(' ')[0] || '',
+            lastName: profile?.last_name || user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
           phoneNumber: profile?.phone_number || '',
           bio: profile?.bio || '',
           preferences: profile?.preferences || {}
-        });
+          });
+        }
+      } catch (err) {
+        console.error('Error handling OAuth redirect:', err);
       }
-    } catch (err) {
-      console.error('Error handling OAuth redirect:', err);
-    }
   }, [userData?.firstName, userData?.lastName, userData?.phoneNumber, userData?.bio, userData?.preferences]);
-
+    
   useEffect(() => {
     handleOAuthRedirect();
   }, [handleOAuthRedirect]);
