@@ -253,7 +253,7 @@ function DashboardContent() {
                   );
                   
                   // If we have actual paid tickets data, use that revenue, otherwise fallback to calculation
-                  eventRevenue += tierPaidTickets.length > 0 ? tierRevenue : (price * 0.9 * soldCount);
+                  eventRevenue += tierPaidTickets.length > 0 ? tierRevenue : (price * soldCount);
                 } else {
                   // Fallback: calculate from ticketSalesData for this tier
                   const tierTickets = paidTicketsData?.filter(ticket => 
@@ -422,7 +422,7 @@ function DashboardContent() {
                   );
                   
                   // If we have actual paid tickets data, use that revenue, otherwise fallback to calculation
-                  eventRevenue += tierPaidTickets.length > 0 ? tierRevenue : (price * 0.9 * soldCount);
+                  eventRevenue += tierPaidTickets.length > 0 ? tierRevenue : (price * soldCount);
                 } else {
                   // Fallback: calculate from ticketSalesData for this tier
                   const tierTickets = paidTicketsData?.filter(ticket => 
@@ -557,14 +557,7 @@ function DashboardContent() {
         {/* Dashboard Content */}
         <div className="flex min-h-screen bg-slate-50">
           {/* Mobile Menu Button - Moved to right */}
-          <button 
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="md:hidden fixed top-4 right-4 z-50 p-2 rounded-lg bg-gradient-to-r from-indigo-600 to-blue-500 text-white shadow-lg"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
+          
 
           {/* Mobile Sidebar Overlay */}
           {isMobileMenuOpen && (
@@ -588,12 +581,6 @@ function DashboardContent() {
                     + Create event
                   </Link>
                   <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
-                    <button className="text-slate-400 hover:text-blue-500 transition-colors relative">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                      </svg>
-                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center">2</span>
-                    </button>
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-full bg-gradient-to-r from-indigo-600 to-blue-500 flex items-center justify-center text-white font-medium shadow-md">
                         {firstName.charAt(0)}{lastName.charAt(0)}

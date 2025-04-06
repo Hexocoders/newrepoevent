@@ -27,6 +27,33 @@ function RevenueContent() {
   const [userData, setUserData] = useState(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
+  // Debug mobile menu state
+  useEffect(() => {
+    console.log('Mobile menu state:', isMobileMenuOpen);
+  }, [isMobileMenuOpen]);
+
+  // Close mobile menu when clicking outside or on refresh
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (isMobileMenuOpen && !e.target.closest('.mobile-menu-button') && !e.target.closest('.sidebar-container')) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+
+    // Add event listener
+    document.addEventListener('mousedown', handleOutsideClick);
+    
+    // Clean up
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [isMobileMenuOpen]);
+
+  // Ensure mobile menu is closed on initial load
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, []);
+  
   // Get user data from localStorage on component mount (client-side only)
   useEffect(() => {
     try {
@@ -275,7 +302,7 @@ function RevenueContent() {
                   );
                   
                   // If we have actual paid tickets data, use that revenue, otherwise fallback to calculation
-                  eventPaidRevenue += tierPaidTickets.length > 0 ? tierRevenue : (price * 0.9 * paidTicketCount);
+                  eventPaidRevenue += tierPaidTickets.length > 0 ? tierRevenue : (price * paidTicketCount);
                 } else {
                   // Fallback for older data without paid_quantity_sold
                   const tierTickets = ticketsData ? 
@@ -496,9 +523,9 @@ function RevenueContent() {
       
       {/* Mobile sidebar */}
       <div 
-        className={`md:hidden fixed inset-y-0 left-0 transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} z-30 transition duration-300 ease-in-out`}
+        className={`md:hidden fixed inset-y-0 left-0 transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} z-30 transition duration-300 ease-in-out w-64 sidebar-container`}
       >
-        <Sidebar />
+        <Sidebar isOpen={isMobileMenuOpen} />
       </div>
       
       {/* Main Content */}
@@ -509,12 +536,23 @@ function RevenueContent() {
             <div className="flex items-center">
               {/* Hamburger menu for mobile */}
               <button 
-                className="md:hidden mr-4 text-slate-500 hover:text-indigo-600 transition-colors"
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="mobile-menu-button md:hidden mr-4 text-slate-500 hover:text-indigo-600 transition-colors cursor-pointer p-2 rounded-lg hover:bg-slate-100 relative z-40"
+                onClick={() => {
+                  console.log('Button clicked, current state:', isMobileMenuOpen);
+                  setIsMobileMenuOpen(prev => !prev);
+                }}
+                aria-label="Toggle mobile menu"
+                style={{ touchAction: 'manipulation' }}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
+                {isMobileMenuOpen ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                )}
               </button>
               <div>
                 <div className="text-sm text-slate-500 mb-1">Revenue</div>
@@ -522,11 +560,6 @@ function RevenueContent() {
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <button className="text-slate-400 hover:text-blue-500 transition-colors relative">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
-              </button>
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-r from-indigo-600 to-blue-500 flex items-center justify-center text-white font-medium shadow-md">
                   {initials}

@@ -141,23 +141,24 @@ export async function processRefund(transactionId, amount = null, reason = 'Even
 /**
  * Calculate platform fee for a given amount
  * @param {number} amount - The ticket or sale amount
- * @param {number} feePercentage - The fee percentage (default: 5%)
- * @returns {Object} - The calculated fee and remaining amount
+ * @param {number} feePercentage - The fee percentage (default: 3%)
+ * @returns {Object} - The calculated fee and customer amount
  */
-export function calculatePlatformFee(amount, feePercentage = 5) {
+export function calculatePlatformFee(amount, feePercentage = 3) {
   const numericAmount = parseFloat(amount);
   if (isNaN(numericAmount)) {
     throw new Error('Invalid amount');
   }
   
   const fee = (numericAmount * feePercentage) / 100;
-  const amountAfterFee = numericAmount - fee;
+  const amountWithFee = numericAmount + fee;
   
   return {
     originalAmount: numericAmount,
     feePercentage,
     feeAmount: fee,
-    amountAfterFee
+    amountWithFee,
+    customerPays: amountWithFee
   };
 }
 

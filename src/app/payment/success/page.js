@@ -33,13 +33,20 @@ function PaymentSuccessContent() {
     // Verify the payment with our backend
     const verifyPayment = async () => {
       try {
+        console.log('Starting payment verification for reference:', ref);
+        
         const response = await fetch('/api/verify-payment', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ reference: ref }),
+          cache: 'no-store'
         });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
         
         const data = await response.json();
         console.log('Payment verification result:', data);
@@ -47,6 +54,17 @@ function PaymentSuccessContent() {
         if (data.success) {
           setVerificationStatus('success');
           setTransactionId(data.data?.transaction_id || 'N/A');
+          
+          // Store the verification result in localStorage
+          try {
+            localStorage.setItem('paymentVerification', JSON.stringify({
+              reference: ref,
+              status: 'success',
+              transactionId: data.data?.transaction_id
+            }));
+          } catch (err) {
+            console.warn('Failed to store verification result:', err);
+          }
           
           // Auto-redirect to ticket page after 3 seconds
           const timer = setTimeout(() => {
@@ -57,10 +75,14 @@ function PaymentSuccessContent() {
         } else {
           setVerificationStatus('failed');
           console.error('Payment verification failed:', data.message);
+          // Show error message to user
+          alert(`Payment verification failed: ${data.message || 'Unknown error occurred'}`);
         }
       } catch (error) {
         setVerificationStatus('error');
         console.error('Error verifying payment:', error);
+        // Show error message to user
+        alert(`An error occurred while verifying payment: ${error.message}`);
       } finally {
         setIsVerifying(false);
       }

@@ -5,22 +5,22 @@ import { useRouter } from 'next/navigation';
 import supabase from '../../lib/supabase';
 import Link from 'next/link';
 
-// Update the MetricCard component with a more modern design
-function MetricCard({ title, value, icon, bgColor, textColor }) {
+// Update the MetricCard component with a monochrome design
+function MetricCard({ title, value, icon }) {
   return (
-    <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 overflow-hidden">
+    <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 overflow-hidden border border-gray-200">
       <div className="p-6">
         <div className="flex items-center">
-          <div className={`w-14 h-14 rounded-lg ${bgColor} flex items-center justify-center ${textColor}`}>
+          <div className="w-14 h-14 rounded-lg bg-black flex items-center justify-center text-white">
             {icon}
           </div>
           <div className="ml-5">
-            <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider">{title}</h3>
-            <p className="text-3xl font-bold mt-1">{value}</p>
+            <h3 className="text-sm font-medium text-gray-600 uppercase tracking-wider">{title}</h3>
+            <p className="text-3xl font-bold text-black mt-1">{value}</p>
           </div>
         </div>
       </div>
-      <div className={`h-1 w-full ${bgColor}`}></div>
+      <div className="h-1 w-full bg-black"></div>
     </div>
   );
 }
@@ -548,7 +548,8 @@ function AdminDashboardContent() {
     totalUsers: 0,
     pendingPayments: 0,
     unreadMessages: 0,
-    partnerRequests: 0
+    partnerRequests: 0,
+    notifications: 0
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -589,7 +590,8 @@ function AdminDashboardContent() {
           totalUsers: usersCount || 0,
           pendingPayments: paymentsCount || 0,
           unreadMessages: messagesCount || 0,
-          partnerRequests: partnerCount || 0
+          partnerRequests: partnerCount || 0,
+          notifications: 3
         });
       } catch (error) {
         console.error('Error fetching dashboard metrics:', error);
@@ -641,155 +643,113 @@ function AdminDashboardContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Welcome Section */}
-        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl shadow-lg mb-8 p-8">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
-            <div>
-              <h1 className="text-3xl font-bold text-white">Welcome to your Dashboard</h1>
-              <p className="text-indigo-100 mt-2">Here's what's happening with your events platform today.</p>
-            </div>
-            <div className="mt-4 md:mt-0">
+    <div className="min-h-screen bg-gray-100">
+      <div className="py-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+            <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>
+            <div className="mt-4 md:mt-0 space-x-3">
               <Link 
-                href="/admin/events/create" 
-                className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-white shadow-lg hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
-                title="Create New Event"
+                href="/admin/customers"
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
-                <div className="relative w-10 h-10">
-                  <img 
-                    src="/logo.png" 
-                    alt="Eventips Logo" 
-                    className="w-full h-full object-contain"
-                  />
-                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                Customer Details
               </Link>
-            </div>
+              {/* ... existing buttons ... */}
           </div>
         </div>
 
-        {/* Metrics Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-8">
-          <MetricCard 
-            title="Total Events" 
+          {/* Quick Stats Section */}
+          <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricCard
+            title="TOTAL EVENTS"
             value={metrics.totalEvents}
             icon={
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
             }
-            bgColor="bg-purple-500"
-            textColor="text-white"
           />
           
-          <MetricCard 
-            title="Total Users" 
+          <MetricCard
+            title="TOTAL USERS"
             value={metrics.totalUsers}
             icon={
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
               </svg>
             }
-            bgColor="bg-green-500"
-            textColor="text-white"
           />
           
-          <MetricCard 
-            title="Pending Payments" 
+          <MetricCard
+            title="PENDING PAYMENTS"
             value={metrics.pendingPayments}
             icon={
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z" />
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             }
-            bgColor="bg-amber-500"
-            textColor="text-white"
           />
           
-          <MetricCard 
-            title="Unread Messages" 
+          <MetricCard
+            title="UNREAD MESSAGES"
             value={metrics.unreadMessages}
             icon={
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
             }
-            bgColor="bg-blue-500"
-            textColor="text-white"
           />
           
-          <MetricCard 
-            title="Partner Requests" 
+          <MetricCard
+            title="PARTNER REQUESTS"
             value={metrics.partnerRequests}
             icon={
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
             }
-            bgColor="bg-red-500"
-            textColor="text-white"
           />
           
-          <MetricCard 
-            title="Notifications" 
-            value={3}
+          <MetricCard
+            title="NOTIFICATIONS"
+            value={metrics.notifications}
             icon={
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
               </svg>
             }
-            bgColor="bg-indigo-500"
-            textColor="text-white"
           />
         </div>
 
-        {/* Notification Card */}
-        <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 mb-8 overflow-hidden">
+          {/* Customer Management Section */}
+          <div className="mt-8">
+            <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="p-6">
+                <h2 className="text-lg font-medium text-gray-900 mb-4">Customer Management</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="bg-blue-50 p-4 rounded-lg">
             <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <div className="w-14 h-14 rounded-lg bg-indigo-500 flex items-center justify-center text-white">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                      <div>
+                        <h3 className="text-sm font-medium text-blue-800">Customer Details</h3>
+                        <p className="text-sm text-blue-600 mt-1">View and manage customer information</p>
+                      </div>
+                      <Link
+                        href="/admin/customers"
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
                   </svg>
-                </div>
-                <div className="ml-5">
-                  <h3 className="text-lg font-semibold text-gray-800">System Notifications</h3>
-                  <p className="text-gray-500 mt-1">Stay updated with important system notifications</p>
-                </div>
-              </div>
-              <Link href="/admin/notifications" className="px-4 py-2 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg text-sm font-medium transition-colors">
-                View All
               </Link>
             </div>
-            
-            <div className="mt-6 space-y-4">
-              <div className="flex items-start p-4 bg-indigo-50 rounded-lg border-l-4 border-indigo-500">
-                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 mr-4">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
                 </div>
-                <div>
-                  <h4 className="text-sm font-medium text-gray-900">New partnership opportunities available</h4>
-                  <p className="text-xs text-gray-500 mt-1">Explore new partner applications in the partnership section</p>
-                </div>
-              </div>
-              
-              <div className="flex items-start p-4 bg-amber-50 rounded-lg border-l-4 border-amber-500">
-                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 mr-4">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div>
-                  <h4 className="text-sm font-medium text-gray-900">Payment processing update</h4>
-                  <p className="text-xs text-gray-500 mt-1">New payment requests require your attention in the payments section</p>
                 </div>
               </div>
             </div>
-          </div>
-          <div className="h-1 w-full bg-indigo-500"></div>
         </div>
 
         {/* Recent Activity Sections */}
@@ -838,6 +798,7 @@ function AdminDashboardContent() {
                 <p className="text-sm text-gray-500">Process payment requests</p>
               </div>
             </Link>
+            </div>
           </div>
         </div>
       </div>

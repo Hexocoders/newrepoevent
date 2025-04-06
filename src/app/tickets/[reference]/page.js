@@ -6,6 +6,47 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { supabase } from '../../../lib/supabaseClient';
 
+// Client-side only QR code component
+function ClientQRCode({ value }) {
+  const [isMounted, setIsMounted] = useState(false);
+  const [QRCodeComponent, setQRCodeComponent] = useState(null);
+
+  useEffect(() => {
+    // Load the QR code library dynamically on the client side only
+    const loadQRCode = async () => {
+      try {
+        const qrModule = await import('qrcode.react');
+        setQRCodeComponent(() => qrModule.default || qrModule.QRCodeSVG || qrModule);
+        setIsMounted(true);
+      } catch (error) {
+        console.error('Failed to load QR code library:', error);
+      }
+    };
+    
+    loadQRCode();
+  }, []);
+
+  // Return a placeholder until the QR code component is loaded
+  if (!isMounted || !QRCodeComponent) {
+    return (
+      <div className="bg-white p-2 rounded-lg inline-block mb-3">
+        <div style={{ width: '180px', height: '180px' }} className="bg-gray-100 flex items-center justify-center">
+          <svg className="animate-spin h-8 w-8 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white p-2 rounded-lg inline-block mb-3">
+      <QRCodeComponent value={value} size={180} />
+    </div>
+  );
+}
+
 export default function TicketPage() {
   const { reference } = useParams();
   const [ticket, setTicket] = useState(null);
@@ -363,26 +404,62 @@ export default function TicketPage() {
     day: 'numeric' 
   });
   
-  // Generate QR code URL with full ticket details
-  const ticketDetailsForQR = {
-    event: event?.title || 'Event',
-    date: formattedDate,
-    time: event?.time || 'Time not available',
-    location: event?.location || 'Location not available',
-    ticketType: ticket.ticket_type,
-    price: String(ticket.price_paid) === '0' || String(ticket.price_paid) === '0.00' ? 'Free' : `₦${ticket.price_paid}`,
-    attendee: ticket.customer_name || ticket.customer_email,
-    reference: ticket.reference,
-    status: ticket.status === 'active' ? 'Confirmed' : ticket.status
+  // Generate QR code data
+  const generateQRData = () => {
+    if (!ticket || !event) return '';
+    
+    // Format date for display
+    const formatDate = (dateString) => {
+      if (!dateString) return 'Not specified';
+      try {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+      } catch (e) {
+        return dateString;
+      }
+    };
+
+    // Format time for display
+    const formatTime = (timeString) => {
+      if (!timeString) return 'Not specified';
+      try {
+        // Handle HH:MM format
+        const parts = timeString.split(':');
+        if (parts.length === 2) {
+          const hours = parseInt(parts[0], 10);
+          const minutes = parts[1];
+          const period = hours >= 12 ? 'PM' : 'AM';
+          const formattedHours = hours % 12 === 0 ? 12 : hours % 12;
+          return `${formattedHours}:${minutes} ${period}`;
+        }
+        return timeString;
+      } catch (e) {
+        return timeString;
+      }
+    };
+    
+    // Create a plain text version with line breaks instead of JSON
+    return `EVENT: ${event.title || 'Event'}
+DESCRIPTION: ${event.description?.substring(0, 100)}${event.description?.length > 100 ? '...' : ''}
+DATE: ${formatDate(event.date)}
+TIME: ${formatTime(event.time || event.start_time)} - ${formatTime(event.end_time)}
+LOCATION: ${event.location || event.venue || 'Not specified'}
+TICKET HOLDER: ${ticket.customer_name || ticket.buyer_name || ticket.customer_email || 'Not specified'}
+TICKET CODE: ${ticket.ticket_code || ticket.reference}
+REFERENCE: ${ticket.reference}
+STATUS: ${(ticket.status || 'Valid').toUpperCase()}
+QUANTITY: ${ticket.quantity || 1} ticket(s)
+CONTACT EMAIL: ${ticket.customer_email || ticket.buyer_email}
+VERIFICATION: ${ticket.id ? ticket.id.substring(0, 6).toUpperCase() : reference.substring(0, 6).toUpperCase()}`;
   };
 
-  // Format as text string for QR code
-  const ticketDetailsText = Object.entries(ticketDetailsForQR)
-    .map(([key, value]) => `${key}: ${value}`)
-    .join('\n');
-
   // Generate QR code URL with complete ticket details
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(ticketDetailsText)}&size=200x200`;
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(generateQRData())}&size=200x200`;
 
   // Use customer_name from ticket if available, or format from email
   const attendeeName = ticket.customer_name || ticket.customer_email;
@@ -409,13 +486,7 @@ export default function TicketPage() {
             {/* QR Code */}
             <div className="flex justify-center my-6">
               <div className="text-center">
-                <Image 
-                  src={qrCodeUrl}
-                  alt="Ticket QR Code" 
-                  width={200}
-                  height={200}
-                  className="mx-auto"
-                />
+                <ClientQRCode value={generateQRData()} />
                 <p className="text-xs text-gray-500 mt-2">Scan for verification</p>
               </div>
             </div>

@@ -13,6 +13,8 @@ export default function PrivateEventReviewPage() {
   const [publishInProgress, setPublishInProgress] = useState(false);
   const [shareLink, setShareLink] = useState('');
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
 
   useEffect(() => {
     // Retrieve the event data from sessionStorage
@@ -77,6 +79,17 @@ export default function PrivateEventReviewPage() {
   };
 
   const handlePublish = async () => {
+    // Check if it's a free event - if yes, show payment modal
+    if (!eventData.isPaid) {
+      setShowPaymentModal(true);
+      return;
+    }
+    
+    // For paid events, proceed with publishing
+    await publishEvent();
+  };
+  
+  const publishEvent = async () => {
     try {
       setPublishInProgress(true);
 
@@ -121,8 +134,30 @@ export default function PrivateEventReviewPage() {
         throw new Error('No data returned after inserting event');
       }
       
-      // Get the share_link and construct the full URL
       const publishedEvent = data[0];
+      
+      // If this was a free event, update the payment record with the event ID
+      if (!eventData.isPaid) {
+        // Get the most recent payment reference from localStorage
+        const paymentRef = localStorage.getItem('freeEventPaymentRef');
+        if (paymentRef) {
+          // Update the payment record with the event ID
+          await fetch(`/api/private-event-fee?reference=${paymentRef}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              event_id: publishedEvent.id
+            }),
+          }).catch(err => console.error('Error updating payment record:', err));
+          
+          // Clear the payment reference
+          localStorage.removeItem('freeEventPaymentRef');
+        }
+      }
+      
+      // Get the share_link and construct the full URL
       const shareUrl = `${window.location.origin}/private-event/${publishedEvent.share_link}`;
       
       setShareLink(shareUrl);
@@ -136,6 +171,162 @@ export default function PrivateEventReviewPage() {
       alert(`Failed to publish event: ${error.message}`);
     } finally {
       setPublishInProgress(false);
+    }
+  };
+  
+  const handlePaymentForFreeEvent = async () => {
+    try {
+      setPaymentLoading(true);
+      
+      // Get user email from localStorage
+      const userStr = localStorage.getItem('user');
+      if (!userStr) {
+        alert('User not authenticated. Please sign in to publish events.');
+        setPaymentLoading(false);
+        return;
+      }
+      
+      const user = JSON.parse(userStr);
+      const userEmail = user.email;
+      
+      if (!userEmail) {
+        alert('User email not found. Please sign in again.');
+        setPaymentLoading(false);
+        return;
+      }
+      
+      // Generate a unique reference
+      const reference = `FREE-EVENT-${Date.now()}`;
+      
+      // Save the reference for later use
+      localStorage.setItem('freeEventPaymentRef', reference);
+      
+      // Check if Paystack script is already loaded
+      if (window.PaystackPop) {
+        initializePaystackPayment(reference, userEmail);
+        return;
+      }
+      
+      // Load Paystack script dynamically
+      const script = document.createElement('script');
+      script.src = 'https://js.paystack.co/v1/inline.js';
+      script.async = true;
+      
+      script.onload = () => {
+        initializePaystackPayment(reference, userEmail);
+      };
+      
+      script.onerror = () => {
+        console.error('Failed to load Paystack script');
+        alert('Failed to load payment system. Please try again.');
+        setPaymentLoading(false);
+      };
+      
+      document.body.appendChild(script);
+      
+    } catch (error) {
+      console.error('Error initializing payment:', error);
+      alert('Error initializing payment. Please try again.');
+      setPaymentLoading(false);
+    }
+  };
+  
+  // Function to initialize Paystack payment
+  const initializePaystackPayment = (reference, email) => {
+    try {
+      // First try to get the key from environment variables
+      let paystackKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
+      
+      // If not available (common in development), use a hardcoded test key
+      if (!paystackKey) {
+        // Use a known working test key
+        paystackKey = 'pk_test_73595fe06e45407c278c54010a0ce1f72f30aea9';
+        console.warn('Using hardcoded Paystack test key. In production, use environment variables.');
+      }
+      
+      console.log('Initializing Paystack with key:', paystackKey);
+      
+      // Create callback function outside the setup
+      const handlePaystackCallback = function(response) {
+        if (response.status === 'success') {
+          // Process successful payment
+          (async () => {
+            try {
+              // Verify payment through our API
+              const userStr = localStorage.getItem('user');
+              const user = JSON.parse(userStr);
+              
+              // Make API call to verify and record payment
+              const verifyResult = await fetch('/api/private-event-fee', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  reference: response.reference,
+                  user_id: user.id,
+                }),
+              });
+              
+              const verifyData = await verifyResult.json();
+              
+              if (!verifyData.success) {
+                throw new Error(verifyData.error || 'Payment verification failed');
+              }
+              
+              // Close the payment modal
+              setShowPaymentModal(false);
+              // Proceed with event publishing
+              publishEvent();
+            } catch (error) {
+              console.error('Error verifying payment:', error);
+              alert(`Payment verification failed: ${error.message}`);
+              setPaymentLoading(false);
+            }
+          })();
+        } else {
+          alert('Payment was not successful. Please try again.');
+          setPaymentLoading(false);
+        }
+      };
+      
+      // Create on close function outside the setup
+      const handlePaystackClose = function() {
+        console.log('Payment modal closed');
+        setPaymentLoading(false);
+      };
+      
+      const handler = window.PaystackPop.setup({
+        key: paystackKey,
+        email: email,
+        amount: 10000 * 100, // 10,000 Naira in kobo
+        currency: 'NGN',
+        ref: reference,
+        metadata: {
+          custom_fields: [
+            {
+              display_name: "Event Name",
+              variable_name: "event_name",
+              value: eventData.eventName
+            },
+            {
+              display_name: "Payment Type",
+              variable_name: "payment_type",
+              value: "Free Private Event Fee"
+            }
+          ]
+        },
+        callback: handlePaystackCallback,
+        onClose: handlePaystackClose
+      });
+      
+      // Open the payment modal
+      handler.openIframe();
+      
+    } catch (error) {
+      console.error('Error in Paystack setup:', error);
+      alert('Failed to initialize payment system. Please try again.');
+      setPaymentLoading(false);
     }
   };
 
@@ -305,6 +496,56 @@ export default function PrivateEventReviewPage() {
             </div>
           </div>
         </div>
+        
+        {/* Payment Modal for Free Events */}
+        {showPaymentModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 max-w-md w-full">
+              <h3 className="text-xl font-semibold text-slate-800 mb-4">Free Private Event Fee</h3>
+              
+              <div className="mb-6">
+                <p className="text-slate-600 mb-4">
+                  For free private events, there is a one-time fee of <span className="font-bold">₦10,000</span> to publish the event.
+                  This fee is charged only once per event.
+                </p>
+                <p className="text-slate-600 mb-4">
+                  This fee helps us maintain our platform and provide you with features like:
+                </p>
+                <ul className="list-disc pl-5 text-slate-600 space-y-2">
+                  <li>Custom event link</li>
+                  <li>Unlimited free ticket distribution</li>
+                  <li>Access to attendee information</li>
+                  <li>Email notifications to attendees</li>
+                  <li>QR code ticket scanning</li>
+                </ul>
+              </div>
+              
+              <div className="flex justify-between">
+                <button
+                  onClick={() => setShowPaymentModal(false)}
+                  className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors duration-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handlePaymentForFreeEvent}
+                  disabled={paymentLoading}
+                  className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-blue-500 text-white rounded-lg hover:from-indigo-700 hover:to-blue-600 transition-all duration-300 shadow-md flex items-center disabled:opacity-50"
+                >
+                  {paymentLoading ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Processing...
+                    </>
+                  ) : 'Proceed with Payment (₦10,000)'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         
         {/* Share Modal */}
         {showShareModal && (

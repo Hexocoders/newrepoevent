@@ -23,7 +23,9 @@ export async function POST(request) {
     }
     
     // Calculate platform fee
-    const feeCalculation = calculatePlatformFee(amount, fee_percentage);
+    console.log('Calculating platform fee for amount:', amount);
+    const feeCalculation = calculatePlatformFee(amount);
+    console.log('Fee calculation result:', feeCalculation);
     
     // In a real implementation, you would call the Paystack API here
     // This is a placeholder for demonstration
@@ -80,7 +82,7 @@ export async function POST(request) {
       if (!eventError && event && event.organizer_id) {
         await supabase.rpc('create_notification', {
           p_title: 'New Ticket Sale',
-          p_message: `New ticket sold for $${amount}. Platform fee: $${feeCalculation.feeAmount.toFixed(2)}. You receive: $${feeCalculation.amountAfterFee.toFixed(2)}.`,
+          p_message: `New ticket sold for $${amount}. Platform fee: $${feeCalculation.feeAmount.toFixed(2)}. Customer pays: $${feeCalculation.customerPays.toFixed(2)}. You receive: $${amount.toFixed(2)}.`,
           p_source: 'payment',
           p_source_id: transaction.id
         });

@@ -163,7 +163,7 @@ function PaymentContent({ sidebarRef }) {
                     );
                     
                     // If we have actual paid tickets data, use that revenue, otherwise fallback to calculation
-                    totalRevenue += tierPaidTickets.length > 0 ? tierRevenue : (price * 0.9 * paidTicketCount);
+                    totalRevenue += tierPaidTickets.length > 0 ? tierRevenue : (price * paidTicketCount);
                     
                     // Count these as paid transactions
                     paidTransactionsCount += paidTicketCount;
@@ -263,7 +263,7 @@ function PaymentContent({ sidebarRef }) {
                 // Fallback if no tickets found but event shows sales
                 const eventPrice = parseFloat(privateEvent.price) || 0;
                 const soldCount = parseInt(privateEvent.quantity_sold) || 0;
-                privateEventsRevenue += eventPrice * 0.9 * soldCount; // Apply 10% platform fee
+                privateEventsRevenue += eventPrice * soldCount; // Full price to organizer (no 10% deduction)
                 privatePaidTickets += soldCount;
                 privatePaidTransactions += soldCount;
                 eventHasPaidTickets = soldCount > 0;

@@ -12,6 +12,13 @@ const Sidebar = forwardRef(function Sidebar(props, ref) {
   const [isScrolled, setIsScrolled] = useState(false);
   const router = useRouter();
 
+  // Use the isOpen prop from parent if provided
+  useEffect(() => {
+    if (props.isOpen !== undefined) {
+      setIsMobileMenuOpen(props.isOpen);
+    }
+  }, [props.isOpen]);
+
   // Expose the toggleMobileMenu function to parent components
   useImperativeHandle(ref, () => ({
     toggleMobileMenu: () => setIsMobileMenuOpen(prev => !prev)
@@ -46,14 +53,16 @@ const Sidebar = forwardRef(function Sidebar(props, ref) {
   return (
     <>
     {/* Mobile Menu Button - Only visible on mobile */}
-    <button
+    {props.isOpen === undefined && (
+      <button
         onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-        className="md:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-gradient-to-r from-indigo-600 to-blue-500 text-white shadow-lg"
+        className="md:hidden fixed top-4 right-4 z-50 p-2 rounded-lg bg-gradient-to-r from-indigo-600 to-blue-500 text-white shadow-lg"
       >
         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
         </svg>
       </button>
+    )}
 
       {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
@@ -67,18 +76,33 @@ const Sidebar = forwardRef(function Sidebar(props, ref) {
       <div className={`${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out md:translate-x-0 fixed md:sticky top-0 left-0 h-screen w-64 bg-white border-r border-slate-200 shadow-md flex flex-col z-50`}>
         {/* Logo */}
         <div className="p-6 border-b border-slate-200">
-          <Link href="/" className="flex items-center">
-            <div className="bg-gradient-to-r from-indigo-600 to-blue-500 p-2 rounded-lg shadow-md">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
+          <a href={pathname} className="flex items-center">
+            <div className="w-10 h-10">
+              <img 
+                src="/logo.png" 
+                alt="Eventip Logo" 
+                className="w-full h-full object-contain"
+              />
             </div>
-            <span className="ml-3 text-xl font-semibold text-slate-800">Dashboard</span>
-          </Link>
+            <span className="ml-3 text-xl font-bold">
+              <span className="text-black">Event</span>
+              <span className="text-red-600">Ip</span>
+            </span>
+          </a>
         </div>
 
         {/* Navigation Links */}
         <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
+          <Link 
+            href="/" 
+            className="flex items-center px-4 py-3 text-slate-600 rounded-lg transition-colors hover:bg-slate-100"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+            <span className="ml-3">Back to Home</span>
+          </Link>
+
           <Link 
             href="/dashboard" 
             className={`flex items-center px-4 py-3 text-slate-600 rounded-lg transition-colors ${
@@ -171,12 +195,9 @@ const Sidebar = forwardRef(function Sidebar(props, ref) {
                 : 'hover:bg-slate-100'
             }`}
           >
-            <div className="relative">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-              </svg>
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center">3</span>
-            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+            </svg>
             <span className="ml-3">Messages</span>
           </Link>
 
@@ -200,7 +221,7 @@ const Sidebar = forwardRef(function Sidebar(props, ref) {
         <div className="px-4 py-4 border-t border-slate-200">
           <button 
             onClick={handleSignOut}
-            className="flex items-center w-full px-4 py-3 text-slate-600 rounded-lg transition-colors hover:bg-slate-100"
+            className="flex items-center w-full px-4 py-3 text-red-600 rounded-lg transition-colors hover:bg-red-50"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

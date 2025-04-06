@@ -107,6 +107,15 @@ export async function POST(request) {
       }, { status: 400 });
     }
     
+    // Check if this is a private event ticket
+    const isPrivateEvent = tableName === 'private_event_tickets';
+    
+    // Get the refund amount - only refund the original ticket price (without processing fees)
+    let refundAmount = parseFloat(ticket.price_paid);
+    
+    // Note: For both private and regular events, we now store the full original price
+    // in price_paid, and we only want to refund this original amount, not any fees
+    
     // Check for a valid payment reference - needed for Paystack refund
     const paymentRef = ticket.payment_reference || ticket.transaction_id || ticket.reference;
     if (!paymentRef) {
@@ -116,13 +125,13 @@ export async function POST(request) {
         .insert({
           ticket_id: ticket.id,
           event_id: ticket.event_id,
-          amount: ticket.price_paid,
+          amount: refundAmount,
           payment_reference: 'manual-refund',
           reason: reason || 'Event cancelled by organizer',
           status: 'manual_required',
           buyer_email: ticket.buyer_email || ticket.customer_email,
           buyer_name: ticket.buyer_name || ticket.customer_name,
-          notes: 'No payment reference found. Manual refund required.'
+          notes: 'No payment reference found. Manual refund required. Refund only the original ticket price (excluding processing fees).'
         })
         .select()
         .single();
@@ -157,13 +166,18 @@ export async function POST(request) {
       });
     }
     
+    // For both private and regular event tickets, we store the original amount in price_paid,
+    // and we only want to refund this original amount, not any additional processing fees
+    console.log(`Processing refund for ${isPrivateEvent ? 'private event' : 'regular'} ticket: ${ticketId}`);
+    console.log(`Refund amount: ${refundAmount}`);
+    
     // Continue with normal Paystack refund if we have a payment reference
     // Initiate refund with Paystack
     console.log(`Initiating Paystack refund for ${tableName} with reference:`, paymentRef);
     
     const refundResult = await initiatePaystackRefund(
       paymentRef,
-      parseFloat(ticket.price_paid),
+      refundAmount,
       reason || 'Event cancelled by organizer'
     );
     
@@ -180,14 +194,15 @@ export async function POST(request) {
       .insert({
         ticket_id: ticket.id,
         event_id: ticket.event_id,
-        amount: ticket.price_paid,
+        amount: refundAmount,
         payment_reference: paymentRef,
         paystack_refund_reference: refundResult.paystackReference,
         paystack_response: refundResult.paystackResponse,
         reason: reason || 'Event cancelled by organizer',
         status: 'processed',
         buyer_email: ticket.buyer_email || ticket.customer_email,
-        buyer_name: ticket.buyer_name || ticket.customer_name
+        buyer_name: ticket.buyer_name || ticket.customer_name,
+        notes: 'Refunded only the original ticket price (excluding processing fees)'
       })
       .select()
       .single();

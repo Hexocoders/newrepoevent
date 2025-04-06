@@ -132,13 +132,14 @@ export default function Navbar() {
           {/* Logo at extreme left with no padding */}
           <div className="pl-4 md:pl-8">
             <Link href="/" className="flex items-center group">
-              <div className="relative w-14 h-14">
+              <div className="relative w-14 h-14 flex items-center justify-center">
+                <div className="absolute inset-0 bg-white rounded-full shadow-md transform transition-all duration-300 group-hover:scale-105"></div>
                 <Image 
                   src="/logo.png" 
                   alt="IP Event" 
-                  width={56}
-                  height={56}
-                  className="object-contain transition-all duration-300 group-hover:scale-105"
+                  width={48}
+                  height={48}
+                  className="relative object-contain transition-all duration-300 group-hover:scale-105 z-10"
                   priority
                   unoptimized
                 />
@@ -190,7 +191,7 @@ export default function Navbar() {
                       Dashboard
                     </Link>
                     <Link 
-                      href="/profile" 
+                      href="/settings" 
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                       onClick={() => setDropdownOpen(false)}
                     >

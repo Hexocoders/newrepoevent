@@ -10,14 +10,21 @@ import ProtectedRoute from '../components/ProtectedRoute';
 
 function PrivateEventsContent() {
   const [privateEvents, setPrivateEvents] = useState([]);
+  const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [ticketsLoading, setTicketsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const router = useRouter();
   
-  // Pagination state
+  // Pagination state for events
   const [currentPage, setCurrentPage] = useState(1);
-  const eventsPerPage = 9; // 3 rows × 3 columns
+  const eventsPerPage = 9;
+
+  // Pagination state for tickets
+  const [currentTicketPage, setCurrentTicketPage] = useState(1);
+  const [totalTickets, setTotalTickets] = useState(0);
+  const ticketsPerPage = 10;
 
   useEffect(() => {
     // Get user from localStorage
@@ -243,6 +250,29 @@ function PrivateEventsContent() {
         console.log('Successfully deleted ticket records');
       }
       
+      // Check for payment fee records and delete them if necessary
+      console.log('Checking for payment fee records to delete...');
+      const { data: feeRecords, error: feeQueryError } = await supabase
+        .from('private_event_fees')
+        .select('id')
+        .eq('event_id', eventId);
+        
+      if (feeQueryError) {
+        console.error('Error checking payment fee records:', feeQueryError);
+      } else if (feeRecords && feeRecords.length > 0) {
+        console.log(`Found ${feeRecords.length} payment fee records to delete`);
+        const { error: feeDeleteError } = await supabase
+          .from('private_event_fees')
+          .delete()
+          .eq('event_id', eventId);
+          
+        if (feeDeleteError) {
+          console.error('Error deleting payment fee records:', feeDeleteError);
+          throw new Error(`Cannot delete event: failed to remove payment fee records: ${feeDeleteError.message}`);
+        }
+        console.log('Successfully deleted payment fee records');
+      }
+      
       // 3. Delete the event - first check if the event exists
       const { data: eventCheck, error: eventCheckError } = await supabase
         .from('private_events')
@@ -320,6 +350,64 @@ function PrivateEventsContent() {
   const goToNextPage = () => setCurrentPage(prev => Math.min(prev + 1, totalPages));
   const goToPreviousPage = () => setCurrentPage(prev => Math.max(prev - 1, 1));
 
+  // Add fetchTickets function
+  const fetchTickets = async () => {
+    try {
+      setTicketsLoading(true);
+      
+      const user = JSON.parse(localStorage.getItem('user'));
+      if (!user || !user.id) return;
+
+      // Calculate pagination range
+      const from = (currentTicketPage - 1) * ticketsPerPage;
+      const to = from + ticketsPerPage - 1;
+
+      // Get total count first by joining with private_events
+      const { count } = await supabase
+        .from('private_event_tickets')
+        .select('*, private_events!inner(*)', { count: 'exact', head: true })
+        .eq('private_events.user_id', user.id);
+
+      setTotalTickets(count || 0);
+
+      // Fetch tickets with pagination
+      const { data, error } = await supabase
+        .from('private_event_tickets')
+        .select(`
+          *,
+          private_events!inner (
+            event_name,
+            event_start_date,
+            user_id
+          )
+        `)
+        .eq('private_events.user_id', user.id)
+        .order('created_at', { ascending: false })
+        .range(from, to);
+
+      if (error) throw error;
+      setTickets(data || []);
+    } catch (error) {
+      console.error('Error fetching tickets:', error);
+      setError('Failed to load tickets. Please try again later.');
+    } finally {
+      setTicketsLoading(false);
+    }
+  };
+
+  // Add useEffect for tickets
+  useEffect(() => {
+    fetchTickets();
+  }, [currentTicketPage]);
+
+  // Format currency
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-NG', {
+      style: 'currency',
+      currency: 'NGN'
+    }).format(amount);
+  };
+
   return (
     <div className="flex h-screen bg-gray-50">
       <Sidebar />
@@ -377,14 +465,6 @@ function PrivateEventsContent() {
                     <span>Create New Private Event</span>
                   </button>
                   <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
-                    <button className="text-slate-400 hover:text-blue-500 transition-colors relative">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                      </svg>
-                      <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                        {privateEvents.length > 0 ? Math.min(privateEvents.length, 9) : 0}
-                      </span>
-                    </button>
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-r from-indigo-600 to-blue-500 flex items-center justify-center text-white font-medium shadow-md">
                         {firstName.charAt(0)}{lastName.charAt(0)}
@@ -583,6 +663,149 @@ function PrivateEventsContent() {
                   )}
                 </>
               )}
+            </div>
+
+            {/* Add Tickets Table Section */}
+            <div className="px-6 py-8">
+              <div className="bg-white rounded-lg shadow-md">
+                <div className="px-6 py-4 border-b border-gray-200">
+                  <h2 className="text-xl font-semibold text-gray-800">Tickets</h2>
+                </div>
+                
+                <div className="overflow-x-auto">
+                  {ticketsLoading ? (
+                    <div className="flex justify-center items-center h-64">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                    </div>
+                  ) : tickets.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      No tickets found
+                    </div>
+                  ) : (
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Event
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Buyer Details
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Ticket Info
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Payment
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Status
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {tickets.map((ticket) => (
+                          <tr key={ticket.id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm font-medium text-gray-900">{ticket.private_events?.event_name || 'Unknown Event'}</div>
+                              <div className="text-sm text-gray-500">
+                                {ticket.private_events?.event_start_date ? 
+                                  new Date(ticket.private_events.event_start_date).toLocaleDateString('en-US', {
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: 'numeric'
+                                  })
+                                  : 'Date not set'
+                                }
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm font-medium text-gray-900">{ticket.buyer_name}</div>
+                              <div className="text-sm text-gray-500">{ticket.buyer_email}</div>
+                              <div className="text-sm text-gray-500">{ticket.buyer_phone || 'N/A'}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">Code: {ticket.ticket_code}</div>
+                              <div className="text-sm text-gray-500">Qty: {ticket.quantity}</div>
+                              <div className="text-sm text-gray-500">Ref: {ticket.reference}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">{formatCurrency(ticket.price_paid)}</div>
+                              <div className="text-sm text-gray-500">Total: {formatCurrency(ticket.total_price)}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                ticket.status === 'active' 
+                                  ? 'bg-green-100 text-green-800' 
+                                  : ticket.status === 'refunded'
+                                  ? 'bg-red-100 text-red-800'
+                                  : 'bg-yellow-100 text-yellow-800'
+                              }`}>
+                                {ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1)}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+
+                {/* Tickets Pagination */}
+                {!ticketsLoading && tickets.length > 0 && (
+                  <div className="px-6 py-4 flex items-center justify-between border-t border-gray-200">
+                    <div className="flex-1 flex justify-between sm:hidden">
+                      <button
+                        onClick={() => setCurrentTicketPage(page => Math.max(page - 1, 1))}
+                        disabled={currentTicketPage === 1}
+                        className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        Previous
+                      </button>
+                      <button
+                        onClick={() => setCurrentTicketPage(page => Math.min(page + 1, Math.ceil(totalTickets / ticketsPerPage)))}
+                        disabled={currentTicketPage === Math.ceil(totalTickets / ticketsPerPage)}
+                        className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        Next
+                      </button>
+                    </div>
+                    <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm text-gray-700">
+                          Showing{' '}
+                          <span className="font-medium">
+                            {Math.min((currentTicketPage - 1) * ticketsPerPage + 1, totalTickets)}
+                          </span>
+                          {' '}to{' '}
+                          <span className="font-medium">
+                            {Math.min(currentTicketPage * ticketsPerPage, totalTickets)}
+                          </span>
+                          {' '}of{' '}
+                          <span className="font-medium">{totalTickets}</span>
+                          {' '}results
+                        </p>
+                      </div>
+                      <div>
+                        <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                          {Array.from({ length: Math.ceil(totalTickets / ticketsPerPage) }).map((_, i) => (
+                            <button
+                              key={i + 1}
+                              onClick={() => setCurrentTicketPage(i + 1)}
+                              className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                                currentTicketPage === i + 1
+                                  ? 'z-10 bg-black text-white border-black'
+                                  : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                              }`}
+                            >
+                              {i + 1}
+                            </button>
+                          ))}
+                        </nav>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </>
         )}

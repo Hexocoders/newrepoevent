@@ -154,11 +154,18 @@ export default function PaystackButton({
         ? parseInt(localStorage.getItem('selectedTicketQuantity'), 10)
         : 1;
 
+      // Calculate total amount with 3% fee
+      const baseAmount = amount * selectedQuantity;
+      const amountWithFee = baseAmount * 1.03; // Add 3% fee
+      const payableAmount = Math.round(amountWithFee * 100); // Convert to kobo
+
+      console.log(`Base amount: ${baseAmount}, With 3% fee: ${amountWithFee}`);
+
       // Initialize Paystack
       const handler = window.PaystackPop.setup({
         key: paystackKey,
         email,
-        amount: amount * 100 * selectedQuantity, // Convert to kobo and multiply by quantity
+        amount: payableAmount, // Amount with 3% fee in kobo
         currency: 'NGN',
         ref: reference,
         channels: ['card', 'bank', 'ussd', 'qr', 'mobile_money', 'bank_transfer'],
@@ -166,6 +173,7 @@ export default function PaystackButton({
           event_id: eventId,
           ticket_type: ticketType,
           ticket_tier_id: ticketTierId,
+          original_amount: baseAmount, // Store original amount without fee
           custom_fields: [
             {
               display_name: "Event ID",

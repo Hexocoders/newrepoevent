@@ -2,13 +2,13 @@ import { NextResponse } from 'next/server';
 import supabase from '../../lib/supabase';
 import { v4 as uuidv4 } from 'uuid';
 
-// Simple function to calculate the amount after 10% fee deduction
-const calculateNetAmount = (price) => {
+// Simple function to calculate the additional amount with 3% fee
+const calculateCustomerAmount = (price) => {
   const amount = parseFloat(price);
   if (isNaN(amount) || amount <= 0) return 0;
   
-  // Deduct 10% fee
-  return amount * 0.9; // 90% of original price
+  // Add 3% fee for the customer
+  return amount * 1.03; // 103% of original price
 };
 
 export async function POST(request) {
@@ -71,16 +71,17 @@ export async function POST(request) {
     // Current timestamp for purchase date
     const purchaseDate = new Date().toISOString().replace('T', ' ').substring(0, 19);
     
-    // Calculate the ticket price and apply 10% fee deduction
-    const fullTicketPrice = event.is_paid ? event.price : 0;
-    const discountedPrice = calculateNetAmount(fullTicketPrice);
+    // Calculate the ticket price and add 3% fee for customer
+    const originalTicketPrice = event.is_paid ? event.price : 0;
+    const customerPrice = calculateCustomerAmount(originalTicketPrice);
     
-    // Calculate total price (still shown as full price to customer)
-    const totalPrice = fullTicketPrice * quantity;
+    // Calculate total price (original price for organizer and database)
+    const totalOriginalPrice = originalTicketPrice * quantity;
+    const totalCustomerPrice = customerPrice * quantity;
     
     // For logging/debugging only (not visible to customer)
-    console.log(`Original price: ${fullTicketPrice}, After 10% fee: ${discountedPrice}`);
-    console.log(`Customer sees and pays: ${totalPrice}, System stores: ${discountedPrice * quantity}`);
+    console.log(`Original price: ${originalTicketPrice}, With 3% fee: ${customerPrice}`);
+    console.log(`Customer pays: ${totalCustomerPrice}, Organizer receives: ${totalOriginalPrice}`);
     
     // Insert the ticket record
     const { error: ticketError } = await supabase
@@ -93,8 +94,8 @@ export async function POST(request) {
         buyer_phone: buyerInfo.phone || null,
         customer_email: customerEmail,
         quantity: quantity,
-        price_paid: discountedPrice, // Store 90% of the price (after 10% fee deduction)
-        total_price: totalPrice, // Store full amount (what customer actually paid)
+        price_paid: originalTicketPrice, // Store 100% of the original price (full amount for organizer)
+        total_price: totalOriginalPrice, // Store original total price without the fee
         payment_reference: paymentReference,
         ticket_code: ticketCode,
         reference: referenceNumber,

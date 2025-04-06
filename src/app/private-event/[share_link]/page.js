@@ -104,7 +104,11 @@ export default function SharedPrivateEventPage() {
     
     // Generate a unique reference
     const reference = `PVT-${event.id}-${Date.now()}`;
-    const amount = event.price * purchaseQuantity * 100; // Amount in kobo
+    
+    // Calculate the amount with 3% fee
+    const baseAmount = event.price * purchaseQuantity;
+    const amountWithFee = baseAmount * 1.03; // Add 3% platform fee
+    const payableAmount = Math.round(amountWithFee * 100); // Convert to kobo and round
     
     // Add PayStack script dynamically if it doesn't exist
     if (!window.PaystackPop) {
@@ -112,11 +116,11 @@ export default function SharedPrivateEventPage() {
       script.src = 'https://js.paystack.co/v1/inline.js';
       script.async = true;
       script.onload = () => {
-        processPaystackPayment(reference, amount);
+        processPaystackPayment(reference, payableAmount);
       };
       document.body.appendChild(script);
     } else {
-      processPaystackPayment(reference, amount);
+      processPaystackPayment(reference, payableAmount);
     }
   };
   
@@ -581,9 +585,26 @@ export default function SharedPrivateEventPage() {
                     
                     {/* Total Price (if paid) */}
                     {event.is_paid && ticketsAvailable > 0 && !showPaymentForm && (
-                      <div className="flex justify-between items-center mb-6 py-3 border-t border-b border-slate-100">
-                        <span className="font-medium text-slate-700">Total</span>
-                        <span className="font-bold text-xl text-indigo-600">₦{(event.price * purchaseQuantity).toFixed(2)}</span>
+                      <div className="mb-6 py-3 border-t border-b border-slate-100">
+                        <div className="flex justify-between items-center">
+                          <span className="font-medium text-slate-700">Ticket Price</span>
+                          <span className="font-bold text-indigo-600">₦{(event.price * purchaseQuantity).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center mt-2">
+                          <span className="font-medium text-slate-700">Charges</span>
+                          <span className="font-medium text-slate-600">₦{(event.price * purchaseQuantity * 0.03).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center mt-3 pt-2 border-t border-slate-100">
+                          <span className="font-medium text-slate-700">Total</span>
+                          <span className="font-bold text-xl text-indigo-600">₦{(event.price * purchaseQuantity * 1.03).toFixed(2)}</span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Footnote about fees */}
+                    {event.is_paid && ticketsAvailable > 0 && (
+                      <div className="mt-2 text-xs text-slate-500 italic">
+                        * 3% charges are added at checkout. Only the original ticket price will be recorded for the event.
                       </div>
                     )}
                     
@@ -660,7 +681,7 @@ export default function SharedPrivateEventPage() {
                                   </svg>
                                   Processing...
                                 </span>
-                              ) : `Pay ₦${(event.price * purchaseQuantity).toFixed(2)}`}
+                              ) : `Pay ₦${(event.price * purchaseQuantity * 1.03).toFixed(2)} (Incl. 3% fee)*`}
                             </button>
                           </div>
                         </div>

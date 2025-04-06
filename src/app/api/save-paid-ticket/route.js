@@ -77,11 +77,10 @@ export async function POST(request) {
       });
     }
 
-    // Calculate the net amount after 10% platform fee
+    // Store the original amount without any deduction (no 10% fee)
     const originalAmount = parseFloat(price_paid) || 0;
-    const netAmount = originalAmount * 0.9; // Apply 10% platform fee (90% goes to organizer)
     
-    console.log('Original amount:', originalAmount, 'Net amount after 10% fee:', netAmount);
+    console.log('Original amount:', originalAmount, 'Full amount will be stored (no platform fee deduction)');
 
     // Prepare data for insertion into paid_tickets table
     const paidTicketData = {
@@ -98,7 +97,7 @@ export async function POST(request) {
       event_time: event_time || '',
       event_location: event_location || '',
       ticket_type: ticket_type || 'General Admission',
-      price_paid: netAmount, // Store the amount after 10% platform fee (90% to organizer)
+      price_paid: originalAmount, // Store the full amount without deduction
       status: 'active',
       purchase_date: new Date().toISOString()
     };

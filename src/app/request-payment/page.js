@@ -154,7 +154,7 @@ function RequestPaymentContent() {
                       );
                       
                       // If we have actual paid tickets data, use that revenue, otherwise fallback to calculation
-                      ticketRevenue += tierPaidTickets.length > 0 ? tierRevenue : (price * 0.9 * paidTicketCount);
+                      ticketRevenue += tierPaidTickets.length > 0 ? tierRevenue : (price * paidTicketCount);
                     }
                   }
                 });
@@ -214,7 +214,7 @@ function RequestPaymentContent() {
                   // Fallback if no tickets found but event shows sales
                   const eventPrice = parseFloat(privateEvent.price) || 0;
                   const soldCount = parseInt(privateEvent.quantity_sold) || 0;
-                  privateEventsRevenue += eventPrice * 0.9 * soldCount; // Apply 10% platform fee
+                  privateEventsRevenue += eventPrice * soldCount; // Full price to organizer (no 10% deduction)
                 }
               }
             });
