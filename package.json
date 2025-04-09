@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@paystack/inline-js": "^2.22.2",
+    "@react-google-maps/api": "^2.20.6",
     "@supabase/supabase-js": "^2.49.1",
     "framer-motion": "^12.5.0",
     "lucide-react": "^0.483.0",

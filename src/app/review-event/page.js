@@ -16,6 +16,7 @@ function ReviewEventContent() {
   const [publishTime, setPublishTime] = useState('');
   const [isScheduleEnabled, setIsScheduleEnabled] = useState(false);
   const [albumImages, setAlbumImages] = useState([]);
+  const [isPromotionEnabled, setIsPromotionEnabled] = useState(false);
 
   // Fetch event data on component mount
   useEffect(() => {
@@ -24,6 +25,9 @@ function ReviewEventContent() {
       try {
         // Get event ID from session storage
         const eventId = sessionStorage.getItem('currentEventId');
+        // Get promotion status from session storage
+        const promotionStatus = sessionStorage.getItem('isPromotionEnabled');
+        setIsPromotionEnabled(promotionStatus === 'true');
         
         if (!eventId) {
           throw new Error('No event found to review');
@@ -113,6 +117,9 @@ function ReviewEventContent() {
           updated_at: new Date().toISOString()
         };
       }
+      
+      // We don't want to modify the is_promotion_enabled field here
+      // since it was already set when creating the event
       
       // Update event in Supabase
       const { error } = await supabase
@@ -367,6 +374,13 @@ function ReviewEventContent() {
                     <div>
                       <h3 className="text-sm font-medium text-slate-700">Visibility</h3>
                       <p className="text-sm text-slate-600 mt-1">{event?.is_public ? 'Public' : 'Private'}</p>
+                    </div>
+
+                    <div>
+                      <h3 className="text-sm font-medium text-slate-700">Promotion</h3>
+                      <p className={`text-sm mt-1 ${event?.is_promotion_enabled ? 'text-green-600 font-medium' : 'text-slate-600'}`}>
+                        {event?.is_promotion_enabled ? 'Enabled' : 'Disabled'}
+                      </p>
                     </div>
                   </div>
                   

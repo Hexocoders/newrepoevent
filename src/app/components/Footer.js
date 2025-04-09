@@ -40,7 +40,7 @@ export default function Footer() {
                 <div className="absolute inset-0 bg-white rounded-full shadow-md"></div>
                 <Image 
                   src="/logo.png" 
-                  alt="IP Event" 
+                  alt="Eventip" 
                   width={64}
                   height={64}
                   className="object-contain w-16 h-16 relative z-10"
@@ -202,7 +202,7 @@ export default function Footer() {
               <option>Spanish</option>
             </select>
             <div className="text-gray-400 text-sm">
-              © {new Date().getFullYear()} IP Event. All rights reserved.
+              © {new Date().getFullYear()} Eventip. All rights reserved.
             </div>
           </div>
           <div className="flex flex-wrap gap-6 text-sm text-gray-400">

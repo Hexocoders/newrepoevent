@@ -9,6 +9,7 @@ const nextConfig = {
       'res.cloudinary.com',
       'placehold.co',
       'images.unsplash.com',
+      'randomuser.me',
     ],
   },
   eslint: {

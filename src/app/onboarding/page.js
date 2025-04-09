@@ -55,15 +55,15 @@ function OnboardingContent() {
               firstName: localUser.first_name || '',
               lastName: localUser.last_name || '',
               phoneNumber: localUser.phone_number || '',
-              bio: localUser.bio || '',
-              preferences: localUser.preferences || {}
+              bio: '',
+              preferences: {}
             });
           } catch (e) {
             console.error('Error parsing stored user data:', e);
           }
         }
         
-        // Try to get user from Supabase Auth (but don't fail if not available)
+        // Try to get user from Supabase Auth
         try {
           const { data, error } = await supabase.auth.getUser();
           
@@ -71,37 +71,27 @@ function OnboardingContent() {
             const authUser = data.user;
             console.log('Found auth user:', authUser.email);
             
-            // Try to get the user's profile from the profiles table
+            // Try to get the user's data from the users table
             try {
-              const { data: profile, error: profileError } = await supabase
-                .from('profiles')
+              const { data: userData, error: userError } = await supabase
+                .from('users')
                 .select('*')
-                .eq('id', authUser.id)
+                .eq('email', authUser.email)
                 .single();
                 
-              if (!profileError && profile) {
-                // Pre-fill form with profile data
+              if (!userError && userData) {
+                // Pre-fill form with user data
                 setUserData({
-                  firstName: profile.first_name || userData.firstName,
-                  lastName: profile.last_name || userData.lastName,
-                  phoneNumber: profile.phone_number || userData.phoneNumber,
-                  bio: profile.bio || userData.bio,
-                  preferences: profile.preferences || userData.preferences
+                  firstName: userData.first_name || '',
+                  lastName: userData.last_name || '',
+                  phoneNumber: userData.phone || '',
+                  bio: '',
+                  preferences: {}
                 });
-                console.log('Pre-filled form with profile data');
-              } else if (authUser.user_metadata) {
-                // Fall back to auth user metadata if no profile
-                setUserData({
-                  firstName: authUser.user_metadata.first_name || userData.firstName,
-                  lastName: authUser.user_metadata.last_name || userData.lastName,
-                  phoneNumber: authUser.user_metadata.phone_number || userData.phoneNumber,
-                  bio: authUser.user_metadata.bio || userData.bio,
-                  preferences: authUser.user_metadata.preferences || userData.preferences
-                });
-                console.log('Pre-filled form with auth user metadata');
+                console.log('Pre-filled form with user data');
               }
-            } catch (profileErr) {
-              console.log('Error fetching profile (continuing):', profileErr.message);
+            } catch (userErr) {
+              console.log('Error fetching user data (continuing):', userErr.message);
             }
           } else if (error) {
             console.log('Auth session missing (continuing with localStorage):', error.message);
@@ -111,9 +101,7 @@ function OnboardingContent() {
         }
         
         // Only show error if we've tried everything and still have no data
-        // AND the user has been on the page for a while (to avoid flash of error)
         if (!localUser && !userData.firstName && !userData.lastName) {
-          // Don't show error immediately - let user fill out form manually if needed
           console.log('No user data found, but allowing manual entry');
         }
       } catch (err) {
@@ -149,44 +137,49 @@ function OnboardingContent() {
         if (user.app_metadata?.provider) {
           console.log('Processing OAuth user:', user.email);
           
-          // Get the user's profile from the profiles table
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles')
+          // Get the user's data from the users table
+          const { data: userData, error: userError } = await supabase
+            .from('users')
             .select('*')
-            .eq('id', user.id)
+            .eq('email', user.email)
             .single();
             
-          if (profileError) {
-            console.error('Error fetching user profile:', profileError);
+          if (userError) {
+            console.error('Error fetching user data:', userError);
+            return;
+          }
+          
+          if (!userData) {
+            console.error('No user found with email:', user.email);
             return;
           }
           
           // Store user data in localStorage
-          localStorage.setItem('user', JSON.stringify({
-            id: user.id,
-            email: user.email,
-            first_name: profile?.first_name || user.user_metadata?.full_name?.split(' ')[0] || '',
-            last_name: profile?.last_name || user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
-          phone_number: profile?.phone_number || '',
-          bio: profile?.bio || '',
-          preferences: profile?.preferences || {}
-          }));
+          const sessionUser = {
+            id: userData.id,
+            email: userData.email,
+            first_name: userData.first_name || '',
+            last_name: userData.last_name || '',
+            phone_number: userData.phone || '',
+            created_at: userData.created_at
+          };
           
-          console.log('User profile stored in localStorage');
+          localStorage.setItem('user', JSON.stringify(sessionUser));
+          console.log('User data stored in localStorage');
           
-          // Pre-fill form with profile data
+          // Pre-fill form with user data
           setUserData({
-            firstName: profile?.first_name || user.user_metadata?.full_name?.split(' ')[0] || '',
-            lastName: profile?.last_name || user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
-          phoneNumber: profile?.phone_number || '',
-          bio: profile?.bio || '',
-          preferences: profile?.preferences || {}
+            firstName: userData.first_name || '',
+            lastName: userData.last_name || '',
+            phoneNumber: userData.phone || '',
+            bio: '',
+            preferences: {}
           });
         }
       } catch (err) {
         console.error('Error handling OAuth redirect:', err);
       }
-  }, [userData?.firstName, userData?.lastName, userData?.phoneNumber, userData?.bio, userData?.preferences]);
+  }, []);
     
   useEffect(() => {
     handleOAuthRedirect();
@@ -617,28 +610,220 @@ function OnboardingContent() {
       )}
       
       {error && (
-        <div className="bg-red-50 text-red-500 p-3 rounded-md mb-4 text-sm mx-8 mt-4">
+        <div className="bg-red-50 text-red-500 p-3 rounded-md mb-4 text-sm mx-4 sm:mx-8 mt-4">
           {error}
         </div>
       )}
       
-      <div className="flex-1 p-8 flex flex-col">
-        {step === 1 ? renderUserInfoForm() : renderInterestsSelection()}
+      <div className="flex-1 p-4 sm:p-8 flex flex-col">
+        <div className="flex flex-col lg:flex-row flex-1">
+          {/* Left side with questions */}
+          <div className="w-full lg:w-1/2 lg:pr-8 mb-8 lg:mb-0">
+            <div className="mb-4 text-sm text-gray-500">Tell us</div>
+            
+            {/* Progress Steps */}
+            <div className="flex flex-col gap-4 sm:gap-8 mb-8">
+              {step === 1 ? (
+                <>
+                  {/* Step 1 - User Info */}
+                  <div className="flex items-center gap-4">
+                    <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-black text-white flex items-center justify-center">
+                      <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-white"></div>
+                    </div>
+                    <h1 className="text-2xl sm:text-4xl font-bold">Your Information</h1>
+                  </div>
+
+                  {/* Step 2 - Interests */}
+                  <div className="flex items-center gap-4">
+                    <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-gray-300 flex items-center justify-center">
+                    </div>
+                    <h2 className="text-xl sm:text-2xl text-gray-400">What are your interests?</h2>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Step 1 - User Info */}
+                  <div className="flex items-center gap-4">
+                    <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-gray-300 text-white flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <h2 className="text-xl sm:text-2xl text-gray-400">Your Information</h2>
+                  </div>
+
+                  {/* Step 2 - Interests */}
+                  <div className="flex items-center gap-4">
+                    <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-black text-white flex items-center justify-center">
+                      <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-white"></div>
+                    </div>
+                    <h1 className="text-2xl sm:text-4xl font-bold">What Are Your Interests?</h1>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Right side with form/interests */}
+          <div className="w-full lg:w-1/2">
+            {step === 1 ? (
+              <div className="space-y-4 sm:space-y-6">
+                <div>
+                  <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
+                    First Name
+                  </label>
+                  <input
+                    type="text"
+                    id="firstName"
+                    name="firstName"
+                    value={userData.firstName}
+                    onChange={handleInputChange}
+                    placeholder="John"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
+                    Last Name
+                  </label>
+                  <input
+                    type="text"
+                    id="lastName"
+                    name="lastName"
+                    value={userData.lastName}
+                    onChange={handleInputChange}
+                    placeholder="Doe"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 mb-1">
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    id="phoneNumber"
+                    name="phoneNumber"
+                    value={userData.phoneNumber}
+                    onChange={handleInputChange}
+                    placeholder="+1 (123) 456-7890"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-6 sm:space-y-8">
+                {/* Music Section */}
+                <div className="mb-6 sm:mb-8">
+                  <h3 className="flex items-center gap-2 text-lg sm:text-xl font-semibold mb-3 sm:mb-4">
+                    <span className="text-gray-500">♫</span> Music
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {musicCategories.map((category) => (
+                      <button
+                        key={category}
+                        onClick={() => handleInterestToggle(category)}
+                        className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm ${
+                          interests.includes(category)
+                            ? 'bg-black text-white'
+                            : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                        }`}
+                      >
+                        {category}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Sport Section */}
+                <div className="mb-6 sm:mb-8">
+                  <h3 className="flex items-center gap-2 text-lg sm:text-xl font-semibold mb-3 sm:mb-4">
+                    <span className="text-gray-500">⚽</span> Sport
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {sportCategories.map((category) => (
+                      <button
+                        key={category}
+                        onClick={() => handleInterestToggle(category)}
+                        className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm ${
+                          interests.includes(category)
+                            ? 'bg-black text-white'
+                            : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                        }`}
+                      >
+                        {category}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Business Section */}
+                <div className="mb-6 sm:mb-8">
+                  <h3 className="flex items-center gap-2 text-lg sm:text-xl font-semibold mb-3 sm:mb-4">
+                    <span className="text-gray-500">💼</span> Business
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {businessCategories.map((category) => (
+                      <button
+                        key={category}
+                        onClick={() => handleInterestToggle(category)}
+                        className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm ${
+                          interests.includes(category)
+                            ? 'bg-black text-white'
+                            : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                        }`}
+                      >
+                        {category}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Exhibition Section */}
+                <div className="mb-6 sm:mb-8">
+                  <h3 className="flex items-center gap-2 text-lg sm:text-xl font-semibold mb-3 sm:mb-4">
+                    <span className="text-gray-500">🎨</span> Exhibition
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {exhibitionCategories.map((category) => (
+                      <button
+                        key={category}
+                        onClick={() => handleInterestToggle(category)}
+                        className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm ${
+                          interests.includes(category)
+                            ? 'bg-black text-white'
+                            : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                        }`}
+                      >
+                        {category}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Navigation buttons */}
-        <div className="flex justify-between mt-8">
+        <div className="flex justify-between mt-6 sm:mt-8">
           {step === 1 ? (
             <>
               <button 
                 onClick={() => setStep(2)}
-                className="px-6 py-2 text-gray-600 hover:bg-gray-100 rounded-md"
+                className="px-4 sm:px-6 py-2 text-gray-600 hover:bg-gray-100 rounded-md text-sm sm:text-base"
               >
                 Skip
               </button>
               <button 
                 onClick={handleUserInfoSubmit}
                 disabled={loading}
-                className="px-6 py-2 bg-gray-900 text-white hover:bg-gray-800 rounded-md disabled:opacity-70 disabled:cursor-not-allowed"
+                className="px-4 sm:px-6 py-2 bg-gray-900 text-white hover:bg-gray-800 rounded-md disabled:opacity-70 disabled:cursor-not-allowed text-sm sm:text-base"
               >
                 {loading ? 'Saving...' : 'Next'}
               </button>
@@ -647,13 +832,13 @@ function OnboardingContent() {
             <>
           <button 
             onClick={handleSkip}
-            className="px-6 py-2 text-gray-600 hover:bg-gray-100 rounded-md"
+                className="px-4 sm:px-6 py-2 text-gray-600 hover:bg-gray-100 rounded-md text-sm sm:text-base"
           >
             Skip
           </button>
           <button 
             onClick={handleNext}
-            className="px-6 py-2 bg-gray-900 text-white hover:bg-gray-800 rounded-md"
+                className="px-4 sm:px-6 py-2 bg-gray-900 text-white hover:bg-gray-800 rounded-md text-sm sm:text-base"
           >
             Next
           </button>

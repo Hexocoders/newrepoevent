@@ -726,31 +726,53 @@ function AdminDashboardContent() {
         </div>
 
           {/* Customer Management Section */}
-          <div className="mt-8">
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="p-6">
-                <h2 className="text-lg font-medium text-gray-900 mb-4">Customer Management</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div className="bg-blue-50 p-4 rounded-lg">
-            <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-sm font-medium text-blue-800">Customer Details</h3>
-                        <p className="text-sm text-blue-600 mt-1">View and manage customer information</p>
-                      </div>
-                      <Link
-                        href="/admin/customers"
-                        className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                  </svg>
-              </Link>
-            </div>
+          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 className="text-lg font-medium text-gray-900 mb-4">Customer Management</h2>
+            
+            <div className="space-y-3">
+              <div className="group cursor-pointer" onClick={() => router.push('/admin/customers')}>
+                <div className="relative overflow-hidden rounded-lg hover:shadow-md transition-shadow duration-300 border border-gray-200 p-4">
+                  <div className="flex items-center">
+                    <div className="bg-indigo-100 rounded-full w-10 h-10 flex items-center justify-center text-indigo-600 mr-3">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-900">Customer Details</h3>
+                      <p className="text-xs text-gray-500">View and manage customer information</p>
+                    </div>
+                  </div>
+                  <div className="absolute inset-y-0 right-0 pr-4 flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 group-hover:text-indigo-500 transition-colors duration-200" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </div>
                 </div>
+              </div>
+
+              <div className="group cursor-pointer" onClick={() => router.push('/admin/promotion-events')}>
+                <div className="relative overflow-hidden rounded-lg hover:shadow-md transition-shadow duration-300 border border-gray-200 p-4">
+                  <div className="flex items-center">
+                    <div className="bg-green-100 rounded-full w-10 h-10 flex items-center justify-center text-green-600 mr-3">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-900">Promotion Management</h3>
+                      <p className="text-xs text-gray-500">Manage promoted events</p>
+                    </div>
+                  </div>
+                  <div className="absolute inset-y-0 right-0 pr-4 flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 group-hover:text-green-500 transition-colors duration-200" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </div>
                 </div>
               </div>
             </div>
-        </div>
+          </div>
 
         {/* Recent Activity Sections */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

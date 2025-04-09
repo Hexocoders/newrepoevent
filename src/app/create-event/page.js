@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import supabase from '../lib/supabase';
 import Image from 'next/image';
+import SimpleMap from '../components/SimpleMap';
 
 function CreateEventContent() {
   const router = useRouter();
@@ -30,9 +31,1652 @@ function CreateEventContent() {
   const [albumImages, setAlbumImages] = useState([]);
   const [albumImageUrls, setAlbumImageUrls] = useState([]);
   const [uploadingAlbum, setUploadingAlbum] = useState(false);
+  const [location, setLocation] = useState(null);
+  const [hasEarlyBird, setHasEarlyBird] = useState(false);
+  const [earlyBirdDays, setEarlyBirdDays] = useState('');
+  const [earlyBirdDiscount, setEarlyBirdDiscount] = useState('');
+  const [hasMultipleBuys, setHasMultipleBuys] = useState(false);
+  const [multipleBuysMinTickets, setMultipleBuysMinTickets] = useState('');
+  const [multipleBuysDiscount, setMultipleBuysDiscount] = useState('');
+  const [isPromotionEnabled, setIsPromotionEnabled] = useState(false);
   
   const fileInputRef = useRef(null);
   const albumInputRef = useRef(null);
+
+  // Add states/provinces data object
+  const statesByCountry = {
+    ng: [ // Nigeria
+      { value: 'AB', label: 'Abia' },
+      { value: 'AD', label: 'Adamawa' },
+      { value: 'AK', label: 'Akwa Ibom' },
+      { value: 'AN', label: 'Anambra' },
+      { value: 'BA', label: 'Bauchi' },
+      { value: 'BY', label: 'Bayelsa' },
+      { value: 'BE', label: 'Benue' },
+      { value: 'BO', label: 'Borno' },
+      { value: 'CR', label: 'Cross River' },
+      { value: 'DE', label: 'Delta' },
+      { value: 'EB', label: 'Ebonyi' },
+      { value: 'ED', label: 'Edo' },
+      { value: 'EK', label: 'Ekiti' },
+      { value: 'EN', label: 'Enugu' },
+      { value: 'FC', label: 'Federal Capital Territory' },
+      { value: 'GO', label: 'Gombe' },
+      { value: 'IM', label: 'Imo' },
+      { value: 'JI', label: 'Jigawa' },
+      { value: 'KD', label: 'Kaduna' },
+      { value: 'KN', label: 'Kano' },
+      { value: 'KT', label: 'Katsina' },
+      { value: 'KE', label: 'Kebbi' },
+      { value: 'KO', label: 'Kogi' },
+      { value: 'KW', label: 'Kwara' },
+      { value: 'LA', label: 'Lagos' },
+      { value: 'NA', label: 'Nasarawa' },
+      { value: 'NI', label: 'Niger' },
+      { value: 'OG', label: 'Ogun' },
+      { value: 'ON', label: 'Ondo' },
+      { value: 'OS', label: 'Osun' },
+      { value: 'OY', label: 'Oyo' },
+      { value: 'PL', label: 'Plateau' },
+      { value: 'RI', label: 'Rivers' },
+      { value: 'SO', label: 'Sokoto' },
+      { value: 'TA', label: 'Taraba' },
+      { value: 'YO', label: 'Yobe' },
+      { value: 'ZA', label: 'Zamfara' }
+    ],
+    us: [ // United States
+      { value: 'AL', label: 'Alabama' },
+      { value: 'AK', label: 'Alaska' },
+      { value: 'AZ', label: 'Arizona' },
+      { value: 'AR', label: 'Arkansas' },
+      { value: 'CA', label: 'California' },
+      { value: 'CO', label: 'Colorado' },
+      { value: 'CT', label: 'Connecticut' },
+      { value: 'DE', label: 'Delaware' },
+      { value: 'FL', label: 'Florida' },
+      { value: 'GA', label: 'Georgia' },
+      { value: 'HI', label: 'Hawaii' },
+      { value: 'ID', label: 'Idaho' },
+      { value: 'IL', label: 'Illinois' },
+      { value: 'IN', label: 'Indiana' },
+      { value: 'IA', label: 'Iowa' },
+      { value: 'KS', label: 'Kansas' },
+      { value: 'KY', label: 'Kentucky' },
+      { value: 'LA', label: 'Louisiana' },
+      { value: 'ME', label: 'Maine' },
+      { value: 'MD', label: 'Maryland' },
+      { value: 'MA', label: 'Massachusetts' },
+      { value: 'MI', label: 'Michigan' },
+      { value: 'MN', label: 'Minnesota' },
+      { value: 'MS', label: 'Mississippi' },
+      { value: 'MO', label: 'Missouri' },
+      { value: 'MT', label: 'Montana' },
+      { value: 'NE', label: 'Nebraska' },
+      { value: 'NV', label: 'Nevada' },
+      { value: 'NH', label: 'New Hampshire' },
+      { value: 'NJ', label: 'New Jersey' },
+      { value: 'NM', label: 'New Mexico' },
+      { value: 'NY', label: 'New York' },
+      { value: 'NC', label: 'North Carolina' },
+      { value: 'ND', label: 'North Dakota' },
+      { value: 'OH', label: 'Ohio' },
+      { value: 'OK', label: 'Oklahoma' },
+      { value: 'OR', label: 'Oregon' },
+      { value: 'PA', label: 'Pennsylvania' },
+      { value: 'RI', label: 'Rhode Island' },
+      { value: 'SC', label: 'South Carolina' },
+      { value: 'SD', label: 'South Dakota' },
+      { value: 'TN', label: 'Tennessee' },
+      { value: 'TX', label: 'Texas' },
+      { value: 'UT', label: 'Utah' },
+      { value: 'VT', label: 'Vermont' },
+      { value: 'VA', label: 'Virginia' },
+      { value: 'WA', label: 'Washington' },
+      { value: 'WV', label: 'West Virginia' },
+      { value: 'WI', label: 'Wisconsin' },
+      { value: 'WY', label: 'Wyoming' }
+    ],
+    ca: [ // Canada
+      { value: 'AB', label: 'Alberta' },
+      { value: 'BC', label: 'British Columbia' },
+      { value: 'MB', label: 'Manitoba' },
+      { value: 'NB', label: 'New Brunswick' },
+      { value: 'NL', label: 'Newfoundland and Labrador' },
+      { value: 'NS', label: 'Nova Scotia' },
+      { value: 'ON', label: 'Ontario' },
+      { value: 'PE', label: 'Prince Edward Island' },
+      { value: 'QC', label: 'Quebec' },
+      { value: 'SK', label: 'Saskatchewan' },
+      { value: 'NT', label: 'Northwest Territories' },
+      { value: 'NU', label: 'Nunavut' },
+      { value: 'YT', label: 'Yukon' }
+    ],
+    gb: [ // United Kingdom
+      { value: 'ENG', label: 'England' },
+      { value: 'SCT', label: 'Scotland' },
+      { value: 'WLS', label: 'Wales' },
+      { value: 'NIR', label: 'Northern Ireland' }
+    ],
+    au: [ // Australia
+      { value: 'NSW', label: 'New South Wales' },
+      { value: 'VIC', label: 'Victoria' },
+      { value: 'QLD', label: 'Queensland' },
+      { value: 'WA', label: 'Western Australia' },
+      { value: 'SA', label: 'South Australia' },
+      { value: 'TAS', label: 'Tasmania' },
+      { value: 'ACT', label: 'Australian Capital Territory' },
+      { value: 'NT', label: 'Northern Territory' }
+    ],
+    in: [ // India
+      { value: 'AP', label: 'Andhra Pradesh' },
+      { value: 'AR', label: 'Arunachal Pradesh' },
+      { value: 'AS', label: 'Assam' },
+      { value: 'BR', label: 'Bihar' },
+      { value: 'CT', label: 'Chhattisgarh' },
+      { value: 'GA', label: 'Goa' },
+      { value: 'GJ', label: 'Gujarat' },
+      { value: 'HR', label: 'Haryana' },
+      { value: 'HP', label: 'Himachal Pradesh' },
+      { value: 'JH', label: 'Jharkhand' },
+      { value: 'KA', label: 'Karnataka' },
+      { value: 'KL', label: 'Kerala' },
+      { value: 'MP', label: 'Madhya Pradesh' },
+      { value: 'MH', label: 'Maharashtra' },
+      { value: 'MN', label: 'Manipur' },
+      { value: 'ML', label: 'Meghalaya' },
+      { value: 'MZ', label: 'Mizoram' },
+      { value: 'NL', label: 'Nagaland' },
+      { value: 'OR', label: 'Odisha' },
+      { value: 'PB', label: 'Punjab' },
+      { value: 'RJ', label: 'Rajasthan' },
+      { value: 'SK', label: 'Sikkim' },
+      { value: 'TN', label: 'Tamil Nadu' },
+      { value: 'TG', label: 'Telangana' },
+      { value: 'TR', label: 'Tripura' },
+      { value: 'UP', label: 'Uttar Pradesh' },
+      { value: 'UT', label: 'Uttarakhand' },
+      { value: 'WB', label: 'West Bengal' }
+    ],
+    za: [ // South Africa
+      { value: 'EC', label: 'Eastern Cape' },
+      { value: 'FS', label: 'Free State' },
+      { value: 'GT', label: 'Gauteng' },
+      { value: 'KZN', label: 'KwaZulu-Natal' },
+      { value: 'LP', label: 'Limpopo' },
+      { value: 'MP', label: 'Mpumalanga' },
+      { value: 'NW', label: 'North West' },
+      { value: 'NC', label: 'Northern Cape' },
+      { value: 'WC', label: 'Western Cape' }
+    ],
+    br: [ // Brazil
+      { value: 'AC', label: 'Acre' },
+      { value: 'AL', label: 'Alagoas' },
+      { value: 'AP', label: 'Amapá' },
+      { value: 'AM', label: 'Amazonas' },
+      { value: 'BA', label: 'Bahia' },
+      { value: 'CE', label: 'Ceará' },
+      { value: 'DF', label: 'Distrito Federal' },
+      { value: 'ES', label: 'Espírito Santo' },
+      { value: 'GO', label: 'Goiás' },
+      { value: 'MA', label: 'Maranhão' },
+      { value: 'MT', label: 'Mato Grosso' },
+      { value: 'MS', label: 'Mato Grosso do Sul' },
+      { value: 'MG', label: 'Minas Gerais' },
+      { value: 'PA', label: 'Pará' },
+      { value: 'PB', label: 'Paraíba' },
+      { value: 'PR', label: 'Paraná' },
+      { value: 'PE', label: 'Pernambuco' },
+      { value: 'PI', label: 'Piauí' },
+      { value: 'RJ', label: 'Rio de Janeiro' },
+      { value: 'RN', label: 'Rio Grande do Norte' },
+      { value: 'RS', label: 'Rio Grande do Sul' },
+      { value: 'RO', label: 'Rondônia' },
+      { value: 'RR', label: 'Roraima' },
+      { value: 'SC', label: 'Santa Catarina' },
+      { value: 'SP', label: 'São Paulo' },
+      { value: 'SE', label: 'Sergipe' },
+      { value: 'TO', label: 'Tocantins' }
+    ],
+    mx: [ // Mexico
+      { value: 'AGU', label: 'Aguascalientes' },
+      { value: 'BCN', label: 'Baja California' },
+      { value: 'BCS', label: 'Baja California Sur' },
+      { value: 'CAM', label: 'Campeche' },
+      { value: 'CHP', label: 'Chiapas' },
+      { value: 'CHH', label: 'Chihuahua' },
+      { value: 'CMX', label: 'Ciudad de México' },
+      { value: 'COA', label: 'Coahuila' },
+      { value: 'COL', label: 'Colima' },
+      { value: 'DUR', label: 'Durango' },
+      { value: 'GUA', label: 'Guanajuato' },
+      { value: 'GRO', label: 'Guerrero' },
+      { value: 'HID', label: 'Hidalgo' },
+      { value: 'JAL', label: 'Jalisco' },
+      { value: 'MEX', label: 'México' },
+      { value: 'MIC', label: 'Michoacán' },
+      { value: 'MOR', label: 'Morelos' },
+      { value: 'NAY', label: 'Nayarit' },
+      { value: 'NLE', label: 'Nuevo León' },
+      { value: 'OAX', label: 'Oaxaca' },
+      { value: 'PUE', label: 'Puebla' },
+      { value: 'QUE', label: 'Querétaro' },
+      { value: 'ROO', label: 'Quintana Roo' },
+      { value: 'SLP', label: 'San Luis Potosí' },
+      { value: 'SIN', label: 'Sinaloa' },
+      { value: 'SON', label: 'Sonora' },
+      { value: 'TAB', label: 'Tabasco' },
+      { value: 'TAM', label: 'Tamaulipas' },
+      { value: 'TLA', label: 'Tlaxcala' },
+      { value: 'VER', label: 'Veracruz' },
+      { value: 'YUC', label: 'Yucatán' },
+      { value: 'ZAC', label: 'Zacatecas' }
+    ],
+    fr: [ // France
+      { value: 'ARA', label: 'Auvergne-Rhône-Alpes' },
+      { value: 'BFC', label: 'Bourgogne-Franche-Comté' },
+      { value: 'BRE', label: 'Bretagne' },
+      { value: 'CVL', label: 'Centre-Val de Loire' },
+      { value: 'COR', label: 'Corse' },
+      { value: 'GES', label: 'Grand Est' },
+      { value: 'HDF', label: 'Hauts-de-France' },
+      { value: 'IDF', label: 'Île-de-France' },
+      { value: 'NOR', label: 'Normandie' },
+      { value: 'NAQ', label: 'Nouvelle-Aquitaine' },
+      { value: 'OCC', label: 'Occitanie' },
+      { value: 'PDL', label: 'Pays de la Loire' },
+      { value: 'PAC', label: "Provence-Alpes-Côte d'Azur" }
+    ],
+    de: [ // Germany
+      { value: 'BW', label: 'Baden-Württemberg' },
+      { value: 'BY', label: 'Bayern' },
+      { value: 'BE', label: 'Berlin' },
+      { value: 'BB', label: 'Brandenburg' },
+      { value: 'HB', label: 'Bremen' },
+      { value: 'HH', label: 'Hamburg' },
+      { value: 'HE', label: 'Hessen' },
+      { value: 'MV', label: 'Mecklenburg-Vorpommern' },
+      { value: 'NI', label: 'Niedersachsen' },
+      { value: 'NW', label: 'Nordrhein-Westfalen' },
+      { value: 'RP', label: 'Rheinland-Pfalz' },
+      { value: 'SL', label: 'Saarland' },
+      { value: 'SN', label: 'Sachsen' },
+      { value: 'ST', label: 'Sachsen-Anhalt' },
+      { value: 'SH', label: 'Schleswig-Holstein' },
+      { value: 'TH', label: 'Thüringen' }
+    ],
+    es: [ // Spain
+      { value: 'AN', label: 'Andalucía' },
+      { value: 'AR', label: 'Aragón' },
+      { value: 'AS', label: 'Asturias' },
+      { value: 'CN', label: 'Canarias' },
+      { value: 'CB', label: 'Cantabria' },
+      { value: 'CL', label: 'Castilla y León' },
+      { value: 'CM', label: 'Castilla-La Mancha' },
+      { value: 'CT', label: 'Cataluña' },
+      { value: 'EX', label: 'Extremadura' },
+      { value: 'GA', label: 'Galicia' },
+      { value: 'IB', label: 'Islas Baleares' },
+      { value: 'RI', label: 'La Rioja' },
+      { value: 'MD', label: 'Madrid' },
+      { value: 'MC', label: 'Murcia' },
+      { value: 'NC', label: 'Navarra' },
+      { value: 'PV', label: 'País Vasco' },
+      { value: 'VC', label: 'Valenciana' }
+    ],
+    it: [ // Italy
+      { value: 'ABR', label: 'Abruzzo' },
+      { value: 'BAS', label: 'Basilicata' },
+      { value: 'CAL', label: 'Calabria' },
+      { value: 'CAM', label: 'Campania' },
+      { value: 'EMR', label: 'Emilia-Romagna' },
+      { value: 'FVG', label: 'Friuli Venezia Giulia' },
+      { value: 'LAZ', label: 'Lazio' },
+      { value: 'LIG', label: 'Liguria' },
+      { value: 'LOM', label: 'Lombardia' },
+      { value: 'MAR', label: 'Marche' },
+      { value: 'MOL', label: 'Molise' },
+      { value: 'PIE', label: 'Piemonte' },
+      { value: 'PUG', label: 'Puglia' },
+      { value: 'SAR', label: 'Sardegna' },
+      { value: 'SIC', label: 'Sicilia' },
+      { value: 'TOS', label: 'Toscana' },
+      { value: 'TAA', label: 'Trentino-Alto Adige' },
+      { value: 'UMB', label: 'Umbria' },
+      { value: 'VDA', label: "Valle d'Aosta" },
+      { value: 'VEN', label: 'Veneto' }
+    ],
+    jp: [ // Japan
+      { value: 'HKD', label: 'Hokkaido' },
+      { value: 'AOM', label: 'Aomori' },
+      { value: 'IWT', label: 'Iwate' },
+      { value: 'MYG', label: 'Miyagi' },
+      { value: 'AKT', label: 'Akita' },
+      { value: 'YGT', label: 'Yamagata' },
+      { value: 'FKS', label: 'Fukushima' },
+      { value: 'IBR', label: 'Ibaraki' },
+      { value: 'TCG', label: 'Tochigi' },
+      { value: 'GNM', label: 'Gunma' },
+      { value: 'STM', label: 'Saitama' },
+      { value: 'CHB', label: 'Chiba' },
+      { value: 'TKY', label: 'Tokyo' },
+      { value: 'KNG', label: 'Kanagawa' },
+      { value: 'NGT', label: 'Niigata' },
+      { value: 'TYM', label: 'Toyama' },
+      { value: 'ISK', label: 'Ishikawa' },
+      { value: 'FKI', label: 'Fukui' },
+      { value: 'YMN', label: 'Yamanashi' },
+      { value: 'NGN', label: 'Nagano' },
+      { value: 'GIF', label: 'Gifu' },
+      { value: 'SZK', label: 'Shizuoka' },
+      { value: 'AIC', label: 'Aichi' },
+      { value: 'MIE', label: 'Mie' },
+      { value: 'SIG', label: 'Shiga' },
+      { value: 'KYT', label: 'Kyoto' },
+      { value: 'OSK', label: 'Osaka' },
+      { value: 'HYG', label: 'Hyogo' },
+      { value: 'NRA', label: 'Nara' },
+      { value: 'WKY', label: 'Wakayama' },
+      { value: 'TTR', label: 'Tottori' },
+      { value: 'SMN', label: 'Shimane' },
+      { value: 'OKY', label: 'Okayama' },
+      { value: 'HRS', label: 'Hiroshima' },
+      { value: 'YGC', label: 'Yamaguchi' },
+      { value: 'TKS', label: 'Tokushima' },
+      { value: 'KGW', label: 'Kagawa' },
+      { value: 'EHM', label: 'Ehime' },
+      { value: 'KOC', label: 'Kochi' },
+      { value: 'FKO', label: 'Fukuoka' },
+      { value: 'SAG', label: 'Saga' },
+      { value: 'NGS', label: 'Nagasaki' },
+      { value: 'KUM', label: 'Kumamoto' },
+      { value: 'OIT', label: 'Oita' },
+      { value: 'MYZ', label: 'Miyazaki' },
+      { value: 'KGS', label: 'Kagoshima' },
+      { value: 'OKN', label: 'Okinawa' }
+    ],
+    eg: [ // Egypt
+      { value: 'CAI', label: 'Cairo' },
+      { value: 'ALX', label: 'Alexandria' },
+      { value: 'ASN', label: 'Aswan' },
+      { value: 'AST', label: 'Asyut' },
+      { value: 'BNS', label: 'Beni Suef' },
+      { value: 'GZ', label: 'Giza' },
+      { value: 'ISM', label: 'Ismailia' },
+      { value: 'LX', label: 'Luxor' },
+      { value: 'MT', label: 'Matrouh' }
+    ],
+    ke: [ // Kenya
+      { value: 'NBI', label: 'Nairobi' },
+      { value: 'MSA', label: 'Mombasa' },
+      { value: 'KSM', label: 'Kisumu' },
+      { value: 'NKU', label: 'Nakuru' },
+      { value: 'ELD', label: 'Eldoret' }
+    ],
+    gh: [ // Ghana
+      { value: 'AC', label: 'Ashanti' },
+      { value: 'BA', label: 'Brong-Ahafo' },
+      { value: 'CE', label: 'Central' },
+      { value: 'EA', label: 'Eastern' },
+      { value: 'GA', label: 'Greater Accra' },
+      { value: 'NO', label: 'Northern' },
+      { value: 'UE', label: 'Upper East' },
+      { value: 'UW', label: 'Upper West' },
+      { value: 'VO', label: 'Volta' },
+      { value: 'WE', label: 'Western' }
+    ],
+    et: [ // Ethiopia
+      { value: 'AA', label: 'Addis Ababa' },
+      { value: 'AF', label: 'Afar' },
+      { value: 'AM', label: 'Amhara' },
+      { value: 'OR', label: 'Oromia' },
+      { value: 'SO', label: 'Somali' },
+      { value: 'TI', label: 'Tigray' }
+    ],
+    ar: [ // Argentina
+      { value: 'BA', label: 'Buenos Aires' },
+      { value: 'CT', label: 'Catamarca' },
+      { value: 'CH', label: 'Chaco' },
+      { value: 'CB', label: 'Córdoba' },
+      { value: 'CR', label: 'Corrientes' },
+      { value: 'ER', label: 'Entre Ríos' },
+      { value: 'FO', label: 'Formosa' },
+      { value: 'JY', label: 'Jujuy' },
+      { value: 'LP', label: 'La Pampa' },
+      { value: 'LR', label: 'La Rioja' },
+      { value: 'MZ', label: 'Mendoza' },
+      { value: 'MI', label: 'Misiones' },
+      { value: 'NQ', label: 'Neuquén' },
+      { value: 'RN', label: 'Río Negro' },
+      { value: 'SA', label: 'Salta' },
+      { value: 'SJ', label: 'San Juan' },
+      { value: 'SL', label: 'San Luis' },
+      { value: 'SC', label: 'Santa Cruz' },
+      { value: 'SF', label: 'Santa Fe' },
+      { value: 'SE', label: 'Santiago del Estero' },
+      { value: 'TF', label: 'Tierra del Fuego' },
+      { value: 'TU', label: 'Tucumán' }
+    ],
+    cn: [ // China
+      { value: 'BJ', label: 'Beijing' },
+      { value: 'SH', label: 'Shanghai' },
+      { value: 'CQ', label: 'Chongqing' },
+      { value: 'GD', label: 'Guangdong' },
+      { value: 'JS', label: 'Jiangsu' },
+      { value: 'SD', label: 'Shandong' },
+      { value: 'ZJ', label: 'Zhejiang' }
+    ],
+    ae: [ // UAE
+      { value: 'ABU', label: 'Abu Dhabi' },
+      { value: 'AJM', label: 'Ajman' },
+      { value: 'DXB', label: 'Dubai' },
+      { value: 'FUJ', label: 'Fujairah' },
+      { value: 'RAK', label: 'Ras Al Khaimah' },
+      { value: 'SHJ', label: 'Sharjah' },
+      { value: 'UMM', label: 'Umm Al Quwain' }
+    ],
+    sa: [ // Saudi Arabia
+      { value: 'RD', label: 'Riyadh' },
+      { value: 'MK', label: 'Makkah' },
+      { value: 'MD', label: 'Medina' },
+      { value: 'EP', label: 'Eastern Province' },
+      { value: 'AS', label: 'Asir' },
+      { value: 'TB', label: 'Tabuk' }
+    ],
+    // Additional African Countries
+    tz: [ // Tanzania
+      { value: 'AR', label: 'Arusha' },
+      { value: 'DS', label: 'Dar es Salaam' },
+      { value: 'DO', label: 'Dodoma' },
+      { value: 'IR', label: 'Iringa' },
+      { value: 'KG', label: 'Kagera' },
+      { value: 'KR', label: 'Kilimanjaro' },
+      { value: 'MB', label: 'Mbeya' },
+      { value: 'MO', label: 'Morogoro' },
+      { value: 'MT', label: 'Mtwara' },
+      { value: 'MW', label: 'Mwanza' },
+      { value: 'PM', label: 'Pemba' },
+      { value: 'PW', label: 'Pwani' },
+      { value: 'RK', label: 'Rukwa' },
+      { value: 'RV', label: 'Ruvuma' },
+      { value: 'SH', label: 'Shinyanga' },
+      { value: 'SI', label: 'Singida' },
+      { value: 'TB', label: 'Tabora' },
+      { value: 'TN', label: 'Tanga' },
+      { value: 'ZN', label: 'Zanzibar' }
+    ],
+    ug: [ // Uganda
+      { value: 'CEN', label: 'Central Region' },
+      { value: 'EAS', label: 'Eastern Region' },
+      { value: 'NOR', label: 'Northern Region' },
+      { value: 'WES', label: 'Western Region' },
+      { value: 'KLA', label: 'Kampala' },
+      { value: 'WKO', label: 'Wakiso' },
+      { value: 'MBR', label: 'Mbarara' },
+      { value: 'GUL', label: 'Gulu' }
+    ],
+    ci: [ // Côte d'Ivoire
+      { value: 'AB', label: 'Abidjan' },
+      { value: 'BS', label: 'Bas-Sassandra' },
+      { value: 'CM', label: 'Comoé' },
+      { value: 'DN', label: 'Denguélé' },
+      { value: 'GD', label: 'Gôh-Djiboua' },
+      { value: 'LC', label: 'Lacs' },
+      { value: 'LG', label: 'Lagunes' },
+      { value: 'MG', label: 'Montagnes' },
+      { value: 'SM', label: 'Sassandra-Marahoué' },
+      { value: 'SV', label: 'Savanes' },
+      { value: 'VB', label: 'Vallée du Bandama' },
+      { value: 'WR', label: 'Woroba' },
+      { value: 'ZZ', label: 'Zanzan' }
+    ],
+    cm: [ // Cameroon
+      { value: 'AD', label: 'Adamawa' },
+      { value: 'CE', label: 'Centre' },
+      { value: 'EN', label: 'Far North' },
+      { value: 'ES', label: 'East' },
+      { value: 'LT', label: 'Littoral' },
+      { value: 'NO', label: 'North' },
+      { value: 'NW', label: 'North-West' },
+      { value: 'OU', label: 'West' },
+      { value: 'SU', label: 'South' },
+      { value: 'SW', label: 'South-West' }
+    ],
+    cd: [ // Democratic Republic of the Congo
+      { value: 'BN', label: 'Bandundu' },
+      { value: 'BC', label: 'Bas-Congo' },
+      { value: 'EQ', label: 'Équateur' },
+      { value: 'KA', label: 'Kasai-Occidental' },
+      { value: 'KE', label: 'Kasai-Oriental' },
+      { value: 'KT', label: 'Katanga' },
+      { value: 'KN', label: 'Kinshasa' },
+      { value: 'MN', label: 'Maniema' },
+      { value: 'NK', label: 'Nord-Kivu' },
+      { value: 'OR', label: 'Orientale' },
+      { value: 'SK', label: 'Sud-Kivu' }
+    ],
+    cg: [ // Republic of the Congo
+      { value: 'BZV', label: 'Brazzaville' },
+      { value: 'BOU', label: 'Bouenza' },
+      { value: 'CUV', label: 'Cuvette' },
+      { value: 'KOU', label: 'Kouilou' },
+      { value: 'LEK', label: 'Lékoumou' },
+      { value: 'LIK', label: 'Likouala' },
+      { value: 'NIA', label: 'Niari' },
+      { value: 'PLT', label: 'Plateaux' },
+      { value: 'POO', label: 'Pool' },
+      { value: 'SAN', label: 'Sangha' }
+    ],
+    ga: [ // Gabon
+      { value: 'ES', label: 'Estuaire' },
+      { value: 'HO', label: 'Haut-Ogooué' },
+      { value: 'MO', label: 'Moyen-Ogooué' },
+      { value: 'NG', label: 'Ngounié' },
+      { value: 'NY', label: 'Nyanga' },
+      { value: 'OI', label: 'Ogooué-Ivindo' },
+      { value: 'OL', label: 'Ogooué-Lolo' },
+      { value: 'OM', label: 'Ogooué-Maritime' },
+      { value: 'WN', label: 'Woleu-Ntem' }
+    ],
+    ao: [ // Angola
+      { value: 'BGO', label: 'Bengo' },
+      { value: 'BGL', label: 'Benguela' },
+      { value: 'BIE', label: 'Bié' },
+      { value: 'CAB', label: 'Cabinda' },
+      { value: 'CNN', label: 'Cunene' },
+      { value: 'HUA', label: 'Huambo' },
+      { value: 'HUI', label: 'Huíla' },
+      { value: 'LUA', label: 'Luanda' },
+      { value: 'LNO', label: 'Lunda Norte' },
+      { value: 'LSU', label: 'Lunda Sul' },
+      { value: 'MAL', label: 'Malange' },
+      { value: 'MOX', label: 'Moxico' },
+      { value: 'NAM', label: 'Namibe' },
+      { value: 'UIG', label: 'Uíge' },
+      { value: 'ZAI', label: 'Zaire' }
+    ],
+    zm: [ // Zambia
+      { value: 'CE', label: 'Central' },
+      { value: 'CO', label: 'Copperbelt' },
+      { value: 'EA', label: 'Eastern' },
+      { value: 'LP', label: 'Luapula' },
+      { value: 'LK', label: 'Lusaka' },
+      { value: 'MU', label: 'Muchinga' },
+      { value: 'NW', label: 'North-Western' },
+      { value: 'NO', label: 'Northern' },
+      { value: 'SO', label: 'Southern' },
+      { value: 'WE', label: 'Western' }
+    ],
+    mw: [ // Malawi
+      { value: 'BA', label: 'Balaka' },
+      { value: 'BL', label: 'Blantyre' },
+      { value: 'CK', label: 'Chikwawa' },
+      { value: 'CR', label: 'Chiradzulu' },
+      { value: 'DE', label: 'Dedza' },
+      { value: 'DO', label: 'Dowa' },
+      { value: 'KR', label: 'Karonga' },
+      { value: 'KS', label: 'Kasungu' },
+      { value: 'LI', label: 'Lilongwe' },
+      { value: 'MH', label: 'Machinga' },
+      { value: 'MG', label: 'Mangochi' },
+      { value: 'MC', label: 'Mchinji' },
+      { value: 'MU', label: 'Mulanje' },
+      { value: 'MW', label: 'Mwanza' },
+      { value: 'MZ', label: 'Mzimba' },
+      { value: 'NB', label: 'Nkhata Bay' },
+      { value: 'NK', label: 'Nkhotakota' },
+      { value: 'NS', label: 'Nsanje' },
+      { value: 'NU', label: 'Ntcheu' },
+      { value: 'NI', label: 'Ntchisi' },
+      { value: 'PH', label: 'Phalombe' },
+      { value: 'RU', label: 'Rumphi' },
+      { value: 'SA', label: 'Salima' },
+      { value: 'TH', label: 'Thyolo' },
+      { value: 'ZO', label: 'Zomba' }
+    ],
+    mz: [ // Mozambique
+      { value: 'CD', label: 'Cabo Delgado' },
+      { value: 'GZ', label: 'Gaza' },
+      { value: 'IN', label: 'Inhambane' },
+      { value: 'MN', label: 'Manica' },
+      { value: 'MP', label: 'Maputo Province' },
+      { value: 'MC', label: 'Maputo City' },
+      { value: 'NM', label: 'Nampula' },
+      { value: 'NS', label: 'Niassa' },
+      { value: 'SF', label: 'Sofala' },
+      { value: 'TT', label: 'Tete' },
+      { value: 'ZB', label: 'Zambézia' }
+    ],
+    zw: [ // Zimbabwe
+      { value: 'BU', label: 'Bulawayo' },
+      { value: 'HA', label: 'Harare' },
+      { value: 'MA', label: 'Manicaland' },
+      { value: 'MC', label: 'Mashonaland Central' },
+      { value: 'ME', label: 'Mashonaland East' },
+      { value: 'MW', label: 'Mashonaland West' },
+      { value: 'MV', label: 'Masvingo' },
+      { value: 'MN', label: 'Matabeleland North' },
+      { value: 'MS', label: 'Matabeleland South' },
+      { value: 'MI', label: 'Midlands' }
+    ],
+    // Additional Asian Countries
+    kr: [ // South Korea
+      { value: 'SL', label: 'Seoul' },
+      { value: 'BS', label: 'Busan' },
+      { value: 'DG', label: 'Daegu' },
+      { value: 'IC', label: 'Incheon' },
+      { value: 'GJ', label: 'Gwangju' },
+      { value: 'DJ', label: 'Daejeon' },
+      { value: 'US', label: 'Ulsan' },
+      { value: 'GG', label: 'Gyeonggi' },
+      { value: 'GW', label: 'Gangwon' },
+      { value: 'CB', label: 'Chungbuk' },
+      { value: 'CN', label: 'Chungnam' },
+      { value: 'JB', label: 'Jeonbuk' },
+      { value: 'JN', label: 'Jeonnam' },
+      { value: 'GB', label: 'Gyeongbuk' },
+      { value: 'GN', label: 'Gyeongnam' },
+      { value: 'JJ', label: 'Jeju' }
+    ],
+    sg: [ // Singapore - Regions
+      { value: 'CR', label: 'Central Region' },
+      { value: 'ER', label: 'East Region' },
+      { value: 'NR', label: 'North Region' },
+      { value: 'NER', label: 'North-East Region' },
+      { value: 'WR', label: 'West Region' }
+    ],
+    my: [ // Malaysia
+      { value: 'JHR', label: 'Johor' },
+      { value: 'KDH', label: 'Kedah' },
+      { value: 'KTN', label: 'Kelantan' },
+      { value: 'MLK', label: 'Melaka' },
+      { value: 'NSN', label: 'Negeri Sembilan' },
+      { value: 'PHG', label: 'Pahang' },
+      { value: 'PNG', label: 'Penang' },
+      { value: 'PRK', label: 'Perak' },
+      { value: 'PLS', label: 'Perlis' },
+      { value: 'SBH', label: 'Sabah' },
+      { value: 'SWK', label: 'Sarawak' },
+      { value: 'SGR', label: 'Selangor' },
+      { value: 'TRG', label: 'Terengganu' },
+      { value: 'KUL', label: 'Kuala Lumpur' },
+      { value: 'LBN', label: 'Labuan' },
+      { value: 'PJY', label: 'Putrajaya' }
+    ],
+    // Central American Countries
+    sv: [ // El Salvador
+      { value: 'AH', label: 'Ahuachapán' },
+      { value: 'CA', label: 'Cabañas' },
+      { value: 'CH', label: 'Chalatenango' },
+      { value: 'CU', label: 'Cuscatlán' },
+      { value: 'LI', label: 'La Libertad' },
+      { value: 'PA', label: 'La Paz' },
+      { value: 'UN', label: 'La Unión' },
+      { value: 'MO', label: 'Morazán' },
+      { value: 'SM', label: 'San Miguel' },
+      { value: 'SS', label: 'San Salvador' },
+      { value: 'SV', label: 'San Vicente' },
+      { value: 'SA', label: 'Santa Ana' },
+      { value: 'SO', label: 'Sonsonate' },
+      { value: 'US', label: 'Usulután' }
+    ],
+    hn: [ // Honduras
+      { value: 'AT', label: 'Atlántida' },
+      { value: 'CH', label: 'Choluteca' },
+      { value: 'CL', label: 'Colón' },
+      { value: 'CM', label: 'Comayagua' },
+      { value: 'CP', label: 'Copán' },
+      { value: 'CR', label: 'Cortés' },
+      { value: 'EP', label: 'El Paraíso' },
+      { value: 'FM', label: 'Francisco Morazán' },
+      { value: 'GD', label: 'Gracias a Dios' },
+      { value: 'IN', label: 'Intibucá' },
+      { value: 'IB', label: 'Islas de la Bahía' },
+      { value: 'LP', label: 'La Paz' },
+      { value: 'LM', label: 'Lempira' },
+      { value: 'OC', label: 'Ocotepeque' },
+      { value: 'OL', label: 'Olancho' },
+      { value: 'SB', label: 'Santa Bárbara' },
+      { value: 'VA', label: 'Valle' },
+      { value: 'YO', label: 'Yoro' }
+    ],
+    ni: [ // Nicaragua
+      { value: 'BO', label: 'Boaco' },
+      { value: 'CA', label: 'Carazo' },
+      { value: 'CI', label: 'Chinandega' },
+      { value: 'CO', label: 'Chontales' },
+      { value: 'ES', label: 'Estelí' },
+      { value: 'GR', label: 'Granada' },
+      { value: 'JI', label: 'Jinotega' },
+      { value: 'LE', label: 'León' },
+      { value: 'MD', label: 'Madriz' },
+      { value: 'MN', label: 'Managua' },
+      { value: 'MS', label: 'Masaya' },
+      { value: 'MT', label: 'Matagalpa' },
+      { value: 'NS', label: 'Nueva Segovia' },
+      { value: 'SJ', label: 'Río San Juan' },
+      { value: 'RI', label: 'Rivas' },
+      { value: 'AN', label: 'Atlántico Norte' },
+      { value: 'AS', label: 'Atlántico Sur' }
+    ],
+    bz: [ // Belize
+      { value: 'BZ', label: 'Belize' },
+      { value: 'CY', label: 'Cayo' },
+      { value: 'CZL', label: 'Corozal' },
+      { value: 'OW', label: 'Orange Walk' },
+      { value: 'SC', label: 'Stann Creek' },
+      { value: 'TOL', label: 'Toledo' }
+    ],
+    pa: [ // Panama
+      { value: 'BC', label: 'Bocas del Toro' },
+      { value: 'CH', label: 'Chiriquí' },
+      { value: 'CC', label: 'Coclé' },
+      { value: 'CL', label: 'Colón' },
+      { value: 'DR', label: 'Darién' },
+      { value: 'HE', label: 'Herrera' },
+      { value: 'LS', label: 'Los Santos' },
+      { value: 'PA', label: 'Panamá' },
+      { value: 'VR', label: 'Veraguas' },
+      { value: 'EM', label: 'Emberá' },
+      { value: 'KY', label: 'Guna Yala' },
+      { value: 'NB', label: 'Ngöbe-Buglé' }
+    ],
+    cr: [ // Costa Rica
+      { value: 'SJ', label: 'San José' },
+      { value: 'AL', label: 'Alajuela' },
+      { value: 'CA', label: 'Cartago' },
+      { value: 'HE', label: 'Heredia' },
+      { value: 'GU', label: 'Guanacaste' },
+      { value: 'PU', label: 'Puntarenas' },
+      { value: 'LI', label: 'Limón' }
+    ],
+    gt: [ // Guatemala
+      { value: 'AV', label: 'Alta Verapaz' },
+      { value: 'BV', label: 'Baja Verapaz' },
+      { value: 'CM', label: 'Chimaltenango' },
+      { value: 'CQ', label: 'Chiquimula' },
+      { value: 'PR', label: 'El Progreso' },
+      { value: 'ES', label: 'Escuintla' },
+      { value: 'GU', label: 'Guatemala' },
+      { value: 'HU', label: 'Huehuetenango' },
+      { value: 'IZ', label: 'Izabal' },
+      { value: 'JA', label: 'Jalapa' },
+      { value: 'JU', label: 'Jutiapa' },
+      { value: 'PE', label: 'Petén' },
+      { value: 'QZ', label: 'Quetzaltenango' },
+      { value: 'QC', label: 'Quiché' },
+      { value: 'RE', label: 'Retalhuleu' },
+      { value: 'SA', label: 'Sacatepéquez' },
+      { value: 'SM', label: 'San Marcos' },
+      { value: 'SR', label: 'Santa Rosa' },
+      { value: 'SO', label: 'Sololá' },
+      { value: 'SU', label: 'Suchitepéquez' },
+      { value: 'TO', label: 'Totonicapán' },
+      { value: 'ZA', label: 'Zacapa' }
+    ],
+    // Caribbean Countries
+    jm: [ // Jamaica
+      { value: 'KIN', label: 'Kingston' },
+      { value: 'STH', label: 'Saint Thomas' },
+      { value: 'POR', label: 'Portland' },
+      { value: 'STA', label: 'Saint Andrew' },
+      { value: 'STC', label: 'Saint Catherine' },
+      { value: 'STM', label: 'Saint Mary' },
+      { value: 'STE', label: 'Saint Elizabeth' },
+      { value: 'TRL', label: 'Trelawny' },
+      { value: 'STJ', label: 'Saint James' },
+      { value: 'HAN', label: 'Hanover' },
+      { value: 'WES', label: 'Westmoreland' },
+      { value: 'MAN', label: 'Manchester' },
+      { value: 'CLA', label: 'Clarendon' },
+      { value: 'STN', label: 'Saint Ann' }
+    ],
+    bs: [ // Bahamas
+      { value: 'ABA', label: 'Abaco' },
+      { value: 'AND', label: 'Andros' },
+      { value: 'BER', label: 'Berry Islands' },
+      { value: 'BIM', label: 'Bimini' },
+      { value: 'CAT', label: 'Cat Island' },
+      { value: 'ELE', label: 'Eleuthera' },
+      { value: 'EXU', label: 'Exuma' },
+      { value: 'GBA', label: 'Grand Bahama' },
+      { value: 'INA', label: 'Inagua' },
+      { value: 'LIS', label: 'Long Island' },
+      { value: 'MAY', label: 'Mayaguana' },
+      { value: 'NAS', label: 'New Providence' },
+      { value: 'RAG', label: 'Ragged Island' },
+      { value: 'RUM', label: 'Rum Cay' },
+      { value: 'SAL', label: 'San Salvador' }
+    ],
+    tt: [ // Trinidad and Tobago
+      { value: 'ARI', label: 'Arima' },
+      { value: 'CHA', label: 'Chaguanas' },
+      { value: 'CTT', label: 'Couva-Tabaquite-Talparo' },
+      { value: 'DMN', label: 'Diego Martin' },
+      { value: 'ETO', label: 'Eastern Tobago' },
+      { value: 'PED', label: 'Penal-Debe' },
+      { value: 'POS', label: 'Port of Spain' },
+      { value: 'PTF', label: 'Point Fortin' },
+      { value: 'PRI', label: 'Princes Town' },
+      { value: 'RCM', label: 'Rio Claro-Mayaro' },
+      { value: 'SFO', label: 'San Fernando' },
+      { value: 'SJL', label: 'San Juan-Laventille' },
+      { value: 'SGE', label: 'Sangre Grande' },
+      { value: 'SIP', label: 'Siparia' },
+      { value: 'TUN', label: 'Tunapuna-Piarco' },
+      { value: 'WTO', label: 'Western Tobago' }
+    ],
+    do: [ // Dominican Republic
+      { value: 'AZU', label: 'Azua' },
+      { value: 'BAO', label: 'Baoruco' },
+      { value: 'BAR', label: 'Barahona' },
+      { value: 'DAJ', label: 'Dajabón' },
+      { value: 'DUA', label: 'Duarte' },
+      { value: 'ELS', label: 'El Seibo' },
+      { value: 'ESP', label: 'Espaillat' },
+      { value: 'HAM', label: 'Hato Mayor' },
+      { value: 'HER', label: 'Hermanas Mirabal' },
+      { value: 'IND', label: 'Independencia' },
+      { value: 'LAA', label: 'La Altagracia' },
+      { value: 'LAR', label: 'La Romana' },
+      { value: 'LAV', label: 'La Vega' },
+      { value: 'MAR', label: 'María Trinidad Sánchez' },
+      { value: 'MTS', label: 'Monseñor Nouel' },
+      { value: 'MON', label: 'Monte Cristi' },
+      { value: 'MPL', label: 'Monte Plata' },
+      { value: 'PED', label: 'Pedernales' },
+      { value: 'PER', label: 'Peravia' },
+      { value: 'PPP', label: 'Puerto Plata' },
+      { value: 'SAM', label: 'Samaná' },
+      { value: 'SAN', label: 'Sánchez Ramírez' },
+      { value: 'SCR', label: 'San Cristóbal' },
+      { value: 'SJO', label: 'San José de Ocoa' },
+      { value: 'SJU', label: 'San Juan' },
+      { value: 'SPM', label: 'San Pedro de Macorís' },
+      { value: 'SAN', label: 'Santiago' },
+      { value: 'SRO', label: 'Santiago Rodríguez' },
+      { value: 'SDF', label: 'Santo Domingo' },
+      { value: 'VAL', label: 'Valverde' },
+      { value: 'NDN', label: 'Distrito Nacional' }
+    ],
+    cu: [ // Cuba
+      { value: 'PRI', label: 'Pinar del Río' },
+      { value: 'ART', label: 'Artemisa' },
+      { value: 'HAV', label: 'La Habana' },
+      { value: 'MAY', label: 'Mayabeque' },
+      { value: 'MAT', label: 'Matanzas' },
+      { value: 'CFG', label: 'Cienfuegos' },
+      { value: 'VCL', label: 'Villa Clara' },
+      { value: 'SSP', label: 'Sancti Spíritus' },
+      { value: 'CAV', label: 'Ciego de Ávila' },
+      { value: 'CMG', label: 'Camagüey' },
+      { value: 'LTU', label: 'Las Tunas' },
+      { value: 'GRA', label: 'Granma' },
+      { value: 'HOL', label: 'Holguín' },
+      { value: 'SCU', label: 'Santiago de Cuba' },
+      { value: 'GTM', label: 'Guantánamo' },
+      { value: 'IJV', label: 'Isla de la Juventud' }
+    ],
+    ht: [ // Haiti
+      { value: 'ART', label: 'Artibonite' },
+      { value: 'CEN', label: 'Centre' },
+      { value: 'GA', label: "Grand'Anse" },
+      { value: 'NP', label: 'Nord' },
+      { value: 'NE', label: 'Nord-Est' },
+      { value: 'NO', label: 'Nord-Ouest' },
+      { value: 'OU', label: 'Ouest' },
+      { value: 'SD', label: 'Sud' },
+      { value: 'SE', label: 'Sud-Est' },
+      { value: 'NI', label: 'Nippes' }
+    ],
+    bb: [ // Barbados
+      { value: 'CC', label: 'Christ Church' },
+      { value: 'SA', label: 'Saint Andrew' },
+      { value: 'SG', label: 'Saint George' },
+      { value: 'SJ', label: 'Saint James' },
+      { value: 'SN', label: 'Saint John' },
+      { value: 'SL', label: 'Saint Lucy' },
+      { value: 'SM', label: 'Saint Michael' },
+      { value: 'SP', label: 'Saint Peter' },
+      { value: 'SPP', label: 'Saint Philip' },
+      { value: 'ST', label: 'Saint Thomas' },
+      { value: 'BR', label: 'Bridgetown' }
+    ],
+    pr: [ // Puerto Rico
+      { value: 'ADB', label: 'Adjuntas' },
+      { value: 'AGD', label: 'Aguada' },
+      { value: 'AGL', label: 'Aguadilla' },
+      { value: 'AGS', label: 'Aguas Buenas' },
+      { value: 'ABN', label: 'Aibonito' },
+      { value: 'ANS', label: 'Añasco' },
+      { value: 'ARC', label: 'Arecibo' },
+      { value: 'ARY', label: 'Arroyo' },
+      { value: 'BJA', label: 'Barceloneta' },
+      { value: 'BRN', label: 'Barranquitas' },
+      { value: 'BAY', label: 'Bayamón' },
+      { value: 'CAB', label: 'Cabo Rojo' },
+      { value: 'CAG', label: 'Caguas' },
+      { value: 'CAM', label: 'Camuy' },
+      { value: 'CAN', label: 'Canóvanas' },
+      { value: 'CAR', label: 'Carolina' },
+      { value: 'CRZ', label: 'Cataño' },
+      { value: 'CAY', label: 'Cayey' },
+      { value: 'CBA', label: 'Ceiba' },
+      { value: 'CIL', label: 'Ciales' },
+      { value: 'CID', label: 'Cidra' },
+      { value: 'COA', label: 'Coamo' },
+      { value: 'COM', label: 'Comerío' },
+      { value: 'COZ', label: 'Corozal' },
+      { value: 'CUL', label: 'Culebra' },
+      { value: 'DOD', label: 'Dorado' },
+      { value: 'FAJ', label: 'Fajardo' },
+      { value: 'FLO', label: 'Florida' },
+      { value: 'GUC', label: 'Guánica' },
+      { value: 'GUY', label: 'Guayama' },
+      { value: 'GUN', label: 'Guayanilla' },
+      { value: 'GBO', label: 'Guaynabo' },
+      { value: 'GRB', label: 'Gurabo' },
+      { value: 'HAT', label: 'Hatillo' },
+      { value: 'HOR', label: 'Hormigueros' },
+      { value: 'HUM', label: 'Humacao' },
+      { value: 'ISB', label: 'Isabela' },
+      { value: 'JAY', label: 'Jayuya' },
+      { value: 'JCD', label: 'Juana Díaz' },
+      { value: 'JNC', label: 'Juncos' },
+      { value: 'LAJ', label: 'Lajas' },
+      { value: 'LAR', label: 'Lares' },
+      { value: 'LAS', label: 'Las Marías' },
+      { value: 'LPD', label: 'Las Piedras' },
+      { value: 'LOZ', label: 'Loíza' },
+      { value: 'LQU', label: 'Luquillo' },
+      { value: 'MAN', label: 'Manatí' },
+      { value: 'MAR', label: 'Maricao' },
+      { value: 'MAU', label: 'Maunabo' },
+      { value: 'MAY', label: 'Mayagüez' },
+      { value: 'MOC', label: 'Moca' },
+      { value: 'MOR', label: 'Morovis' },
+      { value: 'NAG', label: 'Naguabo' },
+      { value: 'NAR', label: 'Naranjito' },
+      { value: 'ORO', label: 'Orocovis' },
+      { value: 'PAT', label: 'Patillas' },
+      { value: 'PEÑ', label: 'Peñuelas' },
+      { value: 'PON', label: 'Ponce' },
+      { value: 'QUE', label: 'Quebradillas' },
+      { value: 'RNG', label: 'Rincón' },
+      { value: 'RGR', label: 'Río Grande' },
+      { value: 'SAB', label: 'Sabana Grande' },
+      { value: 'SAL', label: 'Salinas' },
+      { value: 'SGR', label: 'San Germán' },
+      { value: 'SJU', label: 'San Juan' },
+      { value: 'SLO', label: 'San Lorenzo' },
+      { value: 'SSE', label: 'San Sebastián' },
+      { value: 'SAI', label: 'Santa Isabel' },
+      { value: 'TOA', label: 'Toa Alta' },
+      { value: 'TOB', label: 'Toa Baja' },
+      { value: 'TRJ', label: 'Trujillo Alto' },
+      { value: 'UTD', label: 'Utuado' },
+      { value: 'VEG', label: 'Vega Alta' },
+      { value: 'VBJ', label: 'Vega Baja' },
+      { value: 'VQS', label: 'Vieques' },
+      { value: 'VLL', label: 'Villalba' },
+      { value: 'YAB', label: 'Yabucoa' },
+      { value: 'YAU', label: 'Yauco' }
+    ],
+    // Additional Middle Eastern Countries
+    qa: [ // Qatar
+      { value: 'DA', label: 'Ad Dawhah' },
+      { value: 'KH', label: 'Al Khor' },
+      { value: 'WA', label: 'Al Wakrah' },
+      { value: 'RA', label: 'Ar Rayyan' },
+      { value: 'MS', label: 'Madinat ash Shamal' },
+      { value: 'ZA', label: 'Az Zaayan' },
+      { value: 'US', label: 'Umm Salal' },
+      { value: 'SH', label: 'Ash Shamal' }
+    ],
+    kw: [ // Kuwait
+      { value: 'AH', label: 'Al Ahmadi' },
+      { value: 'FA', label: 'Al Farwaniyah' },
+      { value: 'JA', label: 'Al Jahra' },
+      { value: 'KU', label: 'Al Asimah' },
+      { value: 'HA', label: 'Hawalli' },
+      { value: 'MU', label: 'Mubarak Al-Kabeer' }
+    ],
+    bh: [ // Bahrain
+      { value: 'CAP', label: 'Capital Governorate' },
+      { value: 'MUH', label: 'Muharraq Governorate' },
+      { value: 'NOR', label: 'Northern Governorate' },
+      { value: 'SOU', label: 'Southern Governorate' }
+    ],
+    ae: [ // United Arab Emirates
+      { value: 'AZ', label: 'Abu Dhabi' },
+      { value: 'AJ', label: 'Ajman' },
+      { value: 'DU', label: 'Dubai' },
+      { value: 'FU', label: 'Fujairah' },
+      { value: 'RK', label: 'Ras Al Khaimah' },
+      { value: 'SH', label: 'Sharjah' },
+      { value: 'UQ', label: 'Umm Al Quwain' }
+    ],
+    sa: [ // Saudi Arabia
+      { value: 'RI', label: 'Riyadh' },
+      { value: 'MK', label: 'Makkah' },
+      { value: 'MD', label: 'Madinah' },
+      { value: 'QA', label: 'Al-Qassim' },
+      { value: 'ES', label: 'Eastern Province' },
+      { value: 'AS', label: 'Asir' },
+      { value: 'TB', label: 'Tabuk' },
+      { value: 'HA', label: 'Hail' },
+      { value: 'NB', label: 'Northern Borders' },
+      { value: 'JZ', label: 'Jazan' },
+      { value: 'NJ', label: 'Najran' },
+      { value: 'BA', label: 'Al Bahah' },
+      { value: 'JF', label: 'Al Jawf' }
+    ],
+    jo: [ // Jordan
+      { value: 'AM', label: 'Amman' },
+      { value: 'AQ', label: 'Aqaba' },
+      { value: 'BA', label: 'Balqa' },
+      { value: 'IR', label: 'Irbid' },
+      { value: 'JA', label: 'Jerash' },
+      { value: 'KA', label: 'Karak' },
+      { value: 'MA', label: "Ma'an" },
+      { value: 'MD', label: 'Madaba' },
+      { value: 'MF', label: 'Mafraq' },
+      { value: 'TA', label: 'Tafilah' },
+      { value: 'AJ', label: 'Ajloun' },
+      { value: 'ZA', label: 'Zarqa' }
+    ],
+    lb: [ // Lebanon
+      { value: 'AK', label: 'Akkar' },
+      { value: 'BH', label: 'Baalbek-Hermel' },
+      { value: 'BA', label: 'Beirut' },
+      { value: 'BQ', label: 'Beqaa' },
+      { value: 'JL', label: 'Mount Lebanon' },
+      { value: 'NA', label: 'Nabatieh' },
+      { value: 'NL', label: 'North Lebanon' },
+      { value: 'SL', label: 'South Lebanon' }
+    ],
+    iq: [ // Iraq
+      { value: 'AN', label: 'Al Anbar' },
+      { value: 'BA', label: 'Basra' },
+      { value: 'MU', label: 'Muthanna' },
+      { value: 'QA', label: 'Al-Qādisiyyah' },
+      { value: 'NA', label: 'Najaf' },
+      { value: 'BB', label: 'Babil' },
+      { value: 'BG', label: 'Baghdad' },
+      { value: 'DQ', label: 'Dhi Qar' },
+      { value: 'DI', label: 'Diyala' },
+      { value: 'AR', label: 'Erbil' },
+      { value: 'KA', label: 'Karbala' },
+      { value: 'KI', label: 'Kirkuk' },
+      { value: 'MA', label: 'Maysan' },
+      { value: 'NI', label: 'Ninawa' },
+      { value: 'SD', label: 'Saladin' },
+      { value: 'SU', label: 'Sulaymaniyah' },
+      { value: 'DA', label: 'Dahuk' },
+      { value: 'WA', label: 'Wasit' }
+    ],
+    ir: [ // Iran
+      { value: 'TEH', label: 'Tehran' },
+      { value: 'QOM', label: 'Qom' },
+      { value: 'MKZ', label: 'Markazi' },
+      { value: 'QAZ', label: 'Qazvin' },
+      { value: 'GIL', label: 'Gilan' },
+      { value: 'ARD', label: 'Ardabil' },
+      { value: 'ZAN', label: 'Zanjan' },
+      { value: 'EAZ', label: 'East Azerbaijan' },
+      { value: 'WAZ', label: 'West Azerbaijan' },
+      { value: 'KRD', label: 'Kurdistan' },
+      { value: 'HDN', label: 'Hamadan' },
+      { value: 'KRM', label: 'Kermanshah' },
+      { value: 'ILM', label: 'Ilam' },
+      { value: 'LRS', label: 'Lorestan' },
+      { value: 'KHZ', label: 'Khuzestan' },
+      { value: 'CMB', label: 'Chaharmahal and Bakhtiari' },
+      { value: 'KBA', label: 'Kohgiluyeh and Boyer-Ahmad' },
+      { value: 'BSH', label: 'Bushehr' },
+      { value: 'FAR', label: 'Fars' },
+      { value: 'HRZ', label: 'Hormozgan' },
+      { value: 'SBL', label: 'Sistan and Baluchestan' },
+      { value: 'KER', label: 'Kerman' },
+      { value: 'YZD', label: 'Yazd' },
+      { value: 'EFH', label: 'Isfahan' },
+      { value: 'SMN', label: 'Semnan' },
+      { value: 'MZD', label: 'Mazandaran' },
+      { value: 'GOL', label: 'Golestan' },
+      { value: 'NKH', label: 'North Khorasan' },
+      { value: 'RKH', label: 'Razavi Khorasan' },
+      { value: 'SKH', label: 'South Khorasan' },
+      { value: 'ALB', label: 'Alborz' }
+    ],
+    om: [ // Oman
+      { value: 'DA', label: 'Ad Dakhiliyah' },
+      { value: 'BA', label: 'Al Batinah North' },
+      { value: 'BS', label: 'Al Batinah South' },
+      { value: 'BU', label: 'Al Buraimi' },
+      { value: 'DH', label: 'Ad Dhahirah' },
+      { value: 'MA', label: 'Muscat' },
+      { value: 'MU', label: 'Musandam' },
+      { value: 'SH', label: 'Ash Sharqiyah North' },
+      { value: 'SS', label: 'Ash Sharqiyah South' },
+      { value: 'WU', label: 'Al Wusta' },
+      { value: 'ZA', label: 'Dhofar' }
+    ],
+    co: [ // Colombia
+      { value: 'AMA', label: 'Amazonas' },
+      { value: 'ANT', label: 'Antioquia' },
+      { value: 'ARA', label: 'Arauca' },
+      { value: 'ATL', label: 'Atlántico' },
+      { value: 'BOL', label: 'Bolívar' },
+      { value: 'BOY', label: 'Boyacá' },
+      { value: 'CAL', label: 'Caldas' },
+      { value: 'CAQ', label: 'Caquetá' },
+      { value: 'CAS', label: 'Casanare' },
+      { value: 'CAU', label: 'Cauca' },
+      { value: 'CES', label: 'Cesar' },
+      { value: 'CHO', label: 'Chocó' },
+      { value: 'COR', label: 'Córdoba' },
+      { value: 'CUN', label: 'Cundinamarca' },
+      { value: 'DC', label: 'Distrito Capital de Bogotá' },
+      { value: 'GUA', label: 'Guainía' },
+      { value: 'GUV', label: 'Guaviare' },
+      { value: 'HUI', label: 'Huila' },
+      { value: 'LAG', label: 'La Guajira' },
+      { value: 'MAG', label: 'Magdalena' },
+      { value: 'MET', label: 'Meta' },
+      { value: 'NAR', label: 'Nariño' },
+      { value: 'NSA', label: 'Norte de Santander' },
+      { value: 'PUT', label: 'Putumayo' },
+      { value: 'QUI', label: 'Quindío' },
+      { value: 'RIS', label: 'Risaralda' },
+      { value: 'SAP', label: 'San Andrés y Providencia' },
+      { value: 'SAN', label: 'Santander' },
+      { value: 'SUC', label: 'Sucre' },
+      { value: 'TOL', label: 'Tolima' },
+      { value: 'VAC', label: 'Valle del Cauca' },
+      { value: 'VAU', label: 'Vaupés' },
+      { value: 'VID', label: 'Vichada' }
+    ],
+    pe: [ // Peru
+      { value: 'AMA', label: 'Amazonas' },
+      { value: 'ANC', label: 'Ancash' },
+      { value: 'APU', label: 'Apurímac' },
+      { value: 'ARE', label: 'Arequipa' },
+      { value: 'AYA', label: 'Ayacucho' },
+      { value: 'CAJ', label: 'Cajamarca' },
+      { value: 'CAL', label: 'Callao' },
+      { value: 'CUS', label: 'Cusco' },
+      { value: 'HUV', label: 'Huancavelica' },
+      { value: 'HUC', label: 'Huánuco' },
+      { value: 'ICA', label: 'Ica' },
+      { value: 'JUN', label: 'Junín' },
+      { value: 'LAL', label: 'La Libertad' },
+      { value: 'LAM', label: 'Lambayeque' },
+      { value: 'LIM', label: 'Lima' },
+      { value: 'LOR', label: 'Loreto' },
+      { value: 'MDD', label: 'Madre de Dios' },
+      { value: 'MOQ', label: 'Moquegua' },
+      { value: 'PAS', label: 'Pasco' },
+      { value: 'PIU', label: 'Piura' },
+      { value: 'PUN', label: 'Puno' },
+      { value: 'SAM', label: 'San Martín' },
+      { value: 'TAC', label: 'Tacna' },
+      { value: 'TUM', label: 'Tumbes' },
+      { value: 'UCA', label: 'Ucayali' }
+    ],
+    cl: [ // Chile
+      { value: 'AI', label: 'Aysén' },
+      { value: 'AN', label: 'Antofagasta' },
+      { value: 'AP', label: 'Arica y Parinacota' },
+      { value: 'AT', label: 'Atacama' },
+      { value: 'BI', label: 'Biobío' },
+      { value: 'CO', label: 'Coquimbo' },
+      { value: 'LI', label: "Libertador General Bernardo O'Higgins" },
+      { value: 'LL', label: 'Los Lagos' },
+      { value: 'LR', label: 'Los Ríos' },
+      { value: 'MA', label: 'Magallanes' },
+      { value: 'ML', label: 'Maule' },
+      { value: 'NB', label: 'Ñuble' },
+      { value: 'RM', label: 'Región Metropolitana de Santiago' },
+      { value: 'TA', label: 'Tarapacá' },
+      { value: 'VS', label: 'Valparaíso' },
+      { value: 'AR', label: 'La Araucanía' }
+    ],
+    nl: [ // Netherlands
+      { value: 'DR', label: 'Drenthe' },
+      { value: 'FL', label: 'Flevoland' },
+      { value: 'FR', label: 'Friesland' },
+      { value: 'GE', label: 'Gelderland' },
+      { value: 'GR', label: 'Groningen' },
+      { value: 'LI', label: 'Limburg' },
+      { value: 'NB', label: 'Noord-Brabant' },
+      { value: 'NH', label: 'Noord-Holland' },
+      { value: 'OV', label: 'Overijssel' },
+      { value: 'UT', label: 'Utrecht' },
+      { value: 'ZE', label: 'Zeeland' },
+      { value: 'ZH', label: 'Zuid-Holland' }
+    ],
+    be: [ // Belgium
+      { value: 'VAN', label: 'Antwerpen' },
+      { value: 'BRU', label: 'Brussels' },
+      { value: 'VOV', label: 'Oost-Vlaanderen' },
+      { value: 'VBR', label: 'Vlaams-Brabant' },
+      { value: 'VWV', label: 'West-Vlaanderen' },
+      { value: 'WBR', label: 'Brabant Wallon' },
+      { value: 'WHT', label: 'Hainaut' },
+      { value: 'WLG', label: 'Liège' },
+      { value: 'WLX', label: 'Luxembourg' },
+      { value: 'WNA', label: 'Namur' },
+      { value: 'VLI', label: 'Limburg' }
+    ],
+    se: [ // Sweden
+      { value: 'BL', label: 'Blekinge' },
+      { value: 'DA', label: 'Dalarna' },
+      { value: 'GA', label: 'Gävleborg' },
+      { value: 'GO', label: 'Gotland' },
+      { value: 'HA', label: 'Halland' },
+      { value: 'JA', label: 'Jämtland' },
+      { value: 'JO', label: 'Jönköping' },
+      { value: 'KA', label: 'Kalmar' },
+      { value: 'KR', label: 'Kronoberg' },
+      { value: 'NO', label: 'Norrbotten' },
+      { value: 'OR', label: 'Örebro' },
+      { value: 'OS', label: 'Östergötland' },
+      { value: 'SK', label: 'Skåne' },
+      { value: 'SO', label: 'Södermanland' },
+      { value: 'ST', label: 'Stockholm' },
+      { value: 'UP', label: 'Uppsala' },
+      { value: 'VB', label: 'Västerbotten' },
+      { value: 'VN', label: 'Västernorrland' },
+      { value: 'VM', label: 'Västmanland' },
+      { value: 'VG', label: 'Västra Götaland' },
+      { value: 'VA', label: 'Värmland' }
+    ],
+    ch: [ // Switzerland
+      { value: 'AG', label: 'Aargau' },
+      { value: 'AR', label: 'Appenzell Ausserrhoden' },
+      { value: 'AI', label: 'Appenzell Innerrhoden' },
+      { value: 'BL', label: 'Basel-Landschaft' },
+      { value: 'BS', label: 'Basel-Stadt' },
+      { value: 'BE', label: 'Bern' },
+      { value: 'FR', label: 'Fribourg' },
+      { value: 'GE', label: 'Geneva' },
+      { value: 'GL', label: 'Glarus' },
+      { value: 'GR', label: 'Graubünden' },
+      { value: 'JU', label: 'Jura' },
+      { value: 'LU', label: 'Lucerne' },
+      { value: 'NE', label: 'Neuchâtel' },
+      { value: 'NW', label: 'Nidwalden' },
+      { value: 'OW', label: 'Obwalden' },
+      { value: 'SG', label: 'St. Gallen' },
+      { value: 'SH', label: 'Schaffhausen' },
+      { value: 'SZ', label: 'Schwyz' },
+      { value: 'SO', label: 'Solothurn' },
+      { value: 'TG', label: 'Thurgau' },
+      { value: 'TI', label: 'Ticino' },
+      { value: 'UR', label: 'Uri' },
+      { value: 'VS', label: 'Valais' },
+      { value: 'VD', label: 'Vaud' },
+      { value: 'ZG', label: 'Zug' },
+      { value: 'ZH', label: 'Zürich' }
+    ],
+    at: [ // Austria
+      { value: 'B', label: 'Burgenland' },
+      { value: 'K', label: 'Carinthia' },
+      { value: 'NO', label: 'Lower Austria' },
+      { value: 'OO', label: 'Upper Austria' },
+      { value: 'S', label: 'Salzburg' },
+      { value: 'ST', label: 'Styria' },
+      { value: 'T', label: 'Tyrol' },
+      { value: 'V', label: 'Vorarlberg' },
+      { value: 'W', label: 'Vienna' }
+    ],
+    pl: [ // Poland
+      { value: 'DS', label: 'Lower Silesian' },
+      { value: 'KP', label: 'Kuyavian-Pomeranian' },
+      { value: 'LU', label: 'Lublin' },
+      { value: 'LB', label: 'Lubusz' },
+      { value: 'LD', label: 'Łódź' },
+      { value: 'MA', label: 'Lesser Poland' },
+      { value: 'MZ', label: 'Masovian' },
+      { value: 'OP', label: 'Opole' },
+      { value: 'PK', label: 'Subcarpathian' },
+      { value: 'PD', label: 'Podlaskie' },
+      { value: 'PM', label: 'Pomeranian' },
+      { value: 'SL', label: 'Silesian' },
+      { value: 'SK', label: 'Holy Cross' },
+      { value: 'WN', label: 'Warmian-Masurian' },
+      { value: 'WP', label: 'Greater Poland' },
+      { value: 'ZP', label: 'West Pomeranian' }
+    ],
+    ie: [ // Ireland
+      { value: 'CW', label: 'Carlow' },
+      { value: 'CN', label: 'Cavan' },
+      { value: 'CE', label: 'Clare' },
+      { value: 'CO', label: 'Cork' },
+      { value: 'DL', label: 'Donegal' },
+      { value: 'D', label: 'Dublin' },
+      { value: 'G', label: 'Galway' },
+      { value: 'KY', label: 'Kerry' },
+      { value: 'KE', label: 'Kildare' },
+      { value: 'KK', label: 'Kilkenny' },
+      { value: 'LS', label: 'Laois' },
+      { value: 'LM', label: 'Leitrim' },
+      { value: 'LK', label: 'Limerick' },
+      { value: 'LD', label: 'Longford' },
+      { value: 'LH', label: 'Louth' },
+      { value: 'MO', label: 'Mayo' },
+      { value: 'MH', label: 'Meath' },
+      { value: 'MN', label: 'Monaghan' },
+      { value: 'OY', label: 'Offaly' },
+      { value: 'RN', label: 'Roscommon' },
+      { value: 'SO', label: 'Sligo' },
+      { value: 'TA', label: 'Tipperary' },
+      { value: 'WD', label: 'Waterford' },
+      { value: 'WH', label: 'Westmeath' },
+      { value: 'WX', label: 'Wexford' },
+      { value: 'WW', label: 'Wicklow' }
+    ],
+    pt: [ // Portugal
+      { value: 'AVE', label: 'Aveiro' },
+      { value: 'BEJ', label: 'Beja' },
+      { value: 'BRA', label: 'Braga' },
+      { value: 'BGA', label: 'Bragança' },
+      { value: 'CBR', label: 'Castelo Branco' },
+      { value: 'COI', label: 'Coimbra' },
+      { value: 'EVO', label: 'Évora' },
+      { value: 'FAR', label: 'Faro' },
+      { value: 'GUA', label: 'Guarda' },
+      { value: 'LEI', label: 'Leiria' },
+      { value: 'LIS', label: 'Lisboa' },
+      { value: 'PTL', label: 'Portalegre' },
+      { value: 'POR', label: 'Porto' },
+      { value: 'STR', label: 'Santarém' },
+      { value: 'SET', label: 'Setúbal' },
+      { value: 'VCT', label: 'Viana do Castelo' },
+      { value: 'VRL', label: 'Vila Real' },
+      { value: 'VIS', label: 'Viseu' }
+    ],
+    no: [ // Norway
+      { value: 'AGD', label: 'Agder' },
+      { value: 'INN', label: 'Innlandet' },
+      { value: 'MOR', label: 'Møre og Romsdal' },
+      { value: 'NOR', label: 'Nordland' },
+      { value: 'OSL', label: 'Oslo' },
+      { value: 'ROG', label: 'Rogaland' },
+      { value: 'TRO', label: 'Troms og Finnmark' },
+      { value: 'TRO', label: 'Trøndelag' },
+      { value: 'VES', label: 'Vestfold og Telemark' },
+      { value: 'VIK', label: 'Vestland' },
+      { value: 'VIK', label: 'Viken' }
+    ],
+    dk: [ // Denmark
+      { value: 'CPH', label: 'Capital Region' },
+      { value: 'CEN', label: 'Central Denmark' },
+      { value: 'NOR', label: 'North Denmark' },
+      { value: 'ZEA', label: 'Zealand' },
+      { value: 'SOU', label: 'Southern Denmark' }
+    ],
+    fi: [ // Finland
+      { value: 'UUS', label: 'Uusimaa' },
+      { value: 'VAR', label: 'Southwest Finland' },
+      { value: 'SAT', label: 'Satakunta' },
+      { value: 'KAN', label: 'Tavastia Proper' },
+      { value: 'PIR', label: 'Pirkanmaa' },
+      { value: 'PAI', label: 'Päijänne Tavastia' },
+      { value: 'KYM', label: 'Kymenlaakso' },
+      { value: 'EKA', label: 'South Karelia' },
+      { value: 'ESA', label: 'Southern Savonia' },
+      { value: 'PSA', label: 'Northern Savonia' },
+      { value: 'PKA', label: 'North Karelia' },
+      { value: 'KES', label: 'Central Finland' },
+      { value: 'EPO', label: 'Southern Ostrobothnia' },
+      { value: 'POH', label: 'Ostrobothnia' },
+      { value: 'KPO', label: 'Central Ostrobothnia' },
+      { value: 'PPO', label: 'Northern Ostrobothnia' },
+      { value: 'KAI', label: 'Kainuu' },
+      { value: 'LAP', label: 'Lapland' },
+      { value: 'AHV', label: 'Åland Islands' }
+    ],
+    th: [ // Thailand
+      { value: 'BKK', label: 'Bangkok' },
+      { value: 'KRI', label: 'Kanchanaburi' },
+      { value: 'CNT', label: 'Chanthaburi' },
+      { value: 'CRI', label: 'Chiang Rai' },
+      { value: 'CMA', label: 'Chiang Mai' },
+      { value: 'NWT', label: 'Nonthaburi' },
+      { value: 'PTN', label: 'Pathum Thani' },
+      { value: 'AYA', label: 'Phra Nakhon Si Ayutthaya' },
+      { value: 'PKT', label: 'Phuket' },
+      { value: 'SKA', label: 'Songkhla' },
+      { value: 'STN', label: 'Satun' },
+      { value: 'NKI', label: 'Nakhon Si Thammarat' },
+      { value: 'NRT', label: 'Nakhon Ratchasima' },
+      { value: 'CMI', label: 'Chai Nat' },
+      { value: 'UTD', label: 'Udon Thani' },
+      { value: 'UBN', label: 'Ubon Ratchathani' },
+      { value: 'TAK', label: 'Tak' },
+      { value: 'KKN', label: 'Khon Kaen' },
+      { value: 'RNG', label: 'Ranong' },
+      { value: 'RYG', label: 'Rayong' }
+    ],
+    vn: [ // Vietnam
+      { value: 'HN', label: 'Hanoi' },
+      { value: 'SG', label: 'Ho Chi Minh City' },
+      { value: 'DN', label: 'Da Nang' },
+      { value: 'HP', label: 'Hai Phong' },
+      { value: 'CT', label: 'Can Tho' },
+      { value: 'AG', label: 'An Giang' },
+      { value: 'VT', label: 'Ba Ria-Vung Tau' },
+      { value: 'BG', label: 'Bac Giang' },
+      { value: 'BK', label: 'Bac Kan' },
+      { value: 'BL', label: 'Bac Lieu' },
+      { value: 'BN', label: 'Bac Ninh' },
+      { value: 'BD', label: 'Binh Dinh' },
+      { value: 'BU', label: 'Binh Duong' },
+      { value: 'BP', label: 'Binh Phuoc' },
+      { value: 'BT', label: 'Binh Thuan' },
+      { value: 'CM', label: 'Ca Mau' },
+      { value: 'DL', label: 'Dak Lak' },
+      { value: 'DB', label: 'Dien Bien' },
+      { value: 'GL', label: 'Gia Lai' },
+      { value: 'HG', label: 'Ha Giang' },
+      { value: 'HD', label: 'Hai Duong' },
+      { value: 'HM', label: 'Ha Nam' },
+      { value: 'HT', label: 'Ha Tinh' },
+      { value: 'KH', label: 'Khanh Hoa' },
+      { value: 'KG', label: 'Kien Giang' },
+      { value: 'LA', label: 'Lai Chau' },
+      { value: 'LD', label: 'Lam Dong' },
+      { value: 'LS', label: 'Lang Son' },
+      { value: 'LO', label: 'Lao Cai' },
+      { value: 'NB', label: 'Ninh Binh' },
+      { value: 'NT', label: 'Ninh Thuan' },
+      { value: 'PT', label: 'Phu Tho' },
+      { value: 'QB', label: 'Quang Binh' },
+      { value: 'QN', label: 'Quang Nam' },
+      { value: 'QG', label: 'Quang Ngai' },
+      { value: 'QN', label: 'Quang Ninh' }
+    ],
+    ph: [ // Philippines
+      { value: 'NCR', label: 'National Capital Region' },
+      { value: 'CAR', label: 'Cordillera Administrative Region' },
+      { value: 'R1', label: 'Ilocos Region' },
+      { value: 'R2', label: 'Cagayan Valley' },
+      { value: 'R3', label: 'Central Luzon' },
+      { value: 'R4A', label: 'CALABARZON' },
+      { value: 'R4B', label: 'MIMAROPA' },
+      { value: 'R5', label: 'Bicol Region' },
+      { value: 'R6', label: 'Western Visayas' },
+      { value: 'R7', label: 'Central Visayas' },
+      { value: 'R8', label: 'Eastern Visayas' },
+      { value: 'R9', label: 'Zamboanga Peninsula' },
+      { value: 'R10', label: 'Northern Mindanao' },
+      { value: 'R11', label: 'Davao Region' },
+      { value: 'R12', label: 'SOCCSKSARGEN' },
+      { value: 'R13', label: 'Caraga' },
+      { value: 'BARMM', label: 'Bangsamoro' }
+    ],
+    my: [ // Malaysia
+      { value: 'JHR', label: 'Johor' },
+      { value: 'KDH', label: 'Kedah' },
+      { value: 'KTN', label: 'Kelantan' },
+      { value: 'MLK', label: 'Malacca' },
+      { value: 'NSN', label: 'Negeri Sembilan' },
+      { value: 'PHG', label: 'Pahang' },
+      { value: 'PRK', label: 'Perak' },
+      { value: 'PLS', label: 'Perlis' },
+      { value: 'PNG', label: 'Penang' },
+      { value: 'SBH', label: 'Sabah' },
+      { value: 'SWK', label: 'Sarawak' },
+      { value: 'SGR', label: 'Selangor' },
+      { value: 'TRG', label: 'Terengganu' },
+      { value: 'KUL', label: 'Kuala Lumpur' },
+      { value: 'LBN', label: 'Labuan' },
+      { value: 'PJY', label: 'Putrajaya' }
+    ],
+    sg: [ // Singapore
+      { value: 'CS', label: 'Central Singapore' },
+      { value: 'NE', label: 'North East' },
+      { value: 'NW', label: 'North West' },
+      { value: 'SE', label: 'South East' },
+      { value: 'SW', label: 'South West' }
+    ],
+    id: [ // Indonesia
+      { value: 'AC', label: 'Aceh' },
+      { value: 'BA', label: 'Bali' },
+      { value: 'BB', label: 'Bangka Belitung Islands' },
+      { value: 'BT', label: 'Banten' },
+      { value: 'BE', label: 'Bengkulu' },
+      { value: 'GO', label: 'Gorontalo' },
+      { value: 'JK', label: 'Jakarta' },
+      { value: 'JA', label: 'Jambi' },
+      { value: 'JB', label: 'West Java' },
+      { value: 'JT', label: 'Central Java' },
+      { value: 'JI', label: 'East Java' },
+      { value: 'KB', label: 'West Kalimantan' },
+      { value: 'KS', label: 'South Kalimantan' },
+      { value: 'KT', label: 'Central Kalimantan' },
+      { value: 'KI', label: 'East Kalimantan' },
+      { value: 'KU', label: 'North Kalimantan' },
+      { value: 'KR', label: 'Riau Islands' },
+      { value: 'LA', label: 'Lampung' },
+      { value: 'MA', label: 'Maluku' },
+      { value: 'MU', label: 'North Maluku' },
+      { value: 'NB', label: 'West Nusa Tenggara' },
+      { value: 'NT', label: 'East Nusa Tenggara' },
+      { value: 'PA', label: 'Papua' },
+      { value: 'PB', label: 'West Papua' },
+      { value: 'RI', label: 'Riau' },
+      { value: 'SR', label: 'West Sulawesi' },
+      { value: 'SN', label: 'South Sulawesi' },
+      { value: 'ST', label: 'Central Sulawesi' },
+      { value: 'SG', label: 'Southeast Sulawesi' },
+      { value: 'SA', label: 'North Sulawesi' },
+      { value: 'SB', label: 'West Sumatra' },
+      { value: 'SS', label: 'South Sumatra' },
+      { value: 'SU', label: 'North Sumatra' },
+      { value: 'YO', label: 'Special Region of Yogyakarta' }
+    ],
+    nz: [ // New Zealand
+      { value: 'AUK', label: 'Auckland' },
+      { value: 'BOP', label: 'Bay of Plenty' },
+      { value: 'CAN', label: 'Canterbury' },
+      { value: 'GIS', label: 'Gisborne' },
+      { value: 'HKB', label: "Hawke's Bay" },
+      { value: 'MWT', label: 'Manawatu-Whanganui' },
+      { value: 'MBH', label: 'Marlborough' },
+      { value: 'NSN', label: 'Nelson' },
+      { value: 'NTL', label: 'Northland' },
+      { value: 'OTA', label: 'Otago' },
+      { value: 'STL', label: 'Southland' },
+      { value: 'TKI', label: 'Taranaki' },
+      { value: 'TAS', label: 'Tasman' },
+      { value: 'WKO', label: 'Waikato' },
+      { value: 'WGN', label: 'Wellington' },
+      { value: 'WTC', label: 'West Coast' },
+      { value: 'CIT', label: 'Chatham Islands Territory' }
+    ],
+    pg: [ // Papua New Guinea
+      { value: 'CPK', label: 'Chimbu' },
+      { value: 'CPM', label: 'Central' },
+      { value: 'EBR', label: 'East New Britain' },
+      { value: 'EHG', label: 'Eastern Highlands' },
+      { value: 'EPW', label: 'Enga' },
+      { value: 'ESW', label: 'East Sepik' },
+      { value: 'GPK', label: 'Gulf' },
+      { value: 'MBA', label: 'Milne Bay' },
+      { value: 'MPL', label: 'Morobe' },
+      { value: 'MPM', label: 'Madang' },
+      { value: 'MRL', label: 'Manus' },
+      { value: 'NCD', label: 'National Capital District' },
+      { value: 'NIK', label: 'New Ireland' },
+      { value: 'NPP', label: 'Northern' },
+      { value: 'NSB', label: 'Bougainville' },
+      { value: 'SAN', label: 'West Sepik' },
+      { value: 'SHM', label: 'Southern Highlands' },
+      { value: 'WBK', label: 'West New Britain' },
+      { value: 'WHM', label: 'Western Highlands' },
+      { value: 'WPD', label: 'Western' }
+    ],
+    fj: [ // Fiji
+      { value: 'C', label: 'Central Division' },
+      { value: 'E', label: 'Eastern Division' },
+      { value: 'N', label: 'Northern Division' },
+      { value: 'W', label: 'Western Division' },
+      { value: 'R', label: 'Rotuma' }
+    ],
+    sb: [ // Solomon Islands
+      { value: 'CE', label: 'Central' },
+      { value: 'CH', label: 'Choiseul' },
+      { value: 'GC', label: 'Guadalcanal' },
+      { value: 'IS', label: 'Isabel' },
+      { value: 'MK', label: 'Makira-Ulawa' },
+      { value: 'ML', label: 'Malaita' },
+      { value: 'RB', label: 'Rennell and Bellona' },
+      { value: 'TE', label: 'Temotu' },
+      { value: 'WE', label: 'Western' }
+    ],
+    vu: [ // Vanuatu
+      { value: 'MAP', label: 'Malampa' },
+      { value: 'PAM', label: 'Penama' },
+      { value: 'SAM', label: 'Sanma' },
+      { value: 'SEE', label: 'Shefa' },
+      { value: 'TAE', label: 'Tafea' },
+      { value: 'TOB', label: 'Torba' }
+    ],
+    nc: [ // New Caledonia
+      { value: 'IL', label: 'Loyalty Islands' },
+      { value: 'NC', label: 'North Province' },
+      { value: 'SC', label: 'South Province' }
+    ],
+    ws: [ // Samoa
+      { value: 'AA', label: "A'ana" },
+      { value: 'AL', label: 'Aiga-i-le-Tai' },
+      { value: 'AT', label: 'Atua' },
+      { value: 'FA', label: "Fa'asaleleaga" },
+      { value: 'GE', label: "Gaga'emauga" },
+      { value: 'GI', label: 'Gagaifomauga' },
+      { value: 'PA', label: 'Palauli' },
+      { value: 'SA', label: "Satupa'itea" },
+      { value: 'TU', label: 'Tuamasaga' },
+      { value: 'VF', label: "Va'a-o-Fonoti" },
+      { value: 'VS', label: 'Vaisigano' }
+    ],
+    to: [ // Tonga
+      { value: 'EU', label: "Eua" },
+      { value: 'HA', label: "Ha'apai" },
+      { value: 'NI', label: 'Niuas' },
+      { value: 'TT', label: 'Tongatapu' },
+      { value: 'VA', label: "Vava'u" }
+    ],
+    // ... existing code ...
+  };
+
+  // Handle country change
+  const handleCountryChange = (e) => {
+    const selectedCountry = e.target.value;
+    setCountry(selectedCountry);
+    setState(''); // Reset state when country changes
+  };
 
   // Handle file selection for cover image
   const handleCoverImageSelect = (e) => {
@@ -187,38 +1831,42 @@ function CreateEventContent() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    setError(null);
-    
     try {
+      // Store promotion status in session storage before navigating
+      sessionStorage.setItem('isPromotionEnabled', isPromotionEnabled);
+      
       // Get user from localStorage (custom users table)
       const userStr = localStorage.getItem('user');
       if (!userStr) {
-        throw new Error('Please sign in to create an event');
+        throw new Error('User not found. Please log in again.');
       }
       
       const user = JSON.parse(userStr);
-      console.log('User found:', user);
       
-      // Create event object with all form data
+      // Prepare event data
       const eventData = {
-        user_id: user.id, // Use the custom user's ID
+        user_id: user.id,
         name: eventName,
-        description,
-        category,
-        address,
-        city,
-        state,
-        country,
+        description: description,
+        category: category,
+        address: address,
+        city: city,
+        state: state,
+        country: country,
         event_date: eventDate,
         start_time: startTime,
         end_time: endTime,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         is_public: isPublic,
         is_paid: isPaid,
-        status: 'draft',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        is_promotion_enabled: isPromotionEnabled,
+        status: 'draft'
       };
+      
+      // If location coordinates are available, add them
+      if (location) {
+        eventData.location_coordinates = `(${location.lat}, ${location.lng})`;
+      }
       
       console.log('Saving event data to Supabase...', eventData);
       
@@ -413,6 +2061,12 @@ function CreateEventContent() {
     }
   };
 
+  const handleLocationSelect = (coords) => {
+    setLocation(coords);
+    // You can use these coordinates in your form submission
+    console.log('Selected coordinates:', coords);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="bg-white border-b border-slate-200">
@@ -430,7 +2084,43 @@ function CreateEventContent() {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8">
+        {/* Public/Private Selection - Moved to top */}
+        <div className="mb-8 bg-white rounded-xl p-6 shadow-sm border border-slate-200">
+          <h2 className="text-lg font-medium text-slate-800 mb-4">Event Visibility</h2>
+          <div className="flex space-x-8">
+            <div className="flex items-center">
+              <input
+                type="radio"
+                id="public"
+                name="visibility"
+                checked={isPublic}
+                onChange={() => setIsPublic(true)}
+                className="h-4 w-4 text-indigo-500 focus:ring-indigo-400"
+              />
+              <label htmlFor="public" className="ml-2 text-sm font-medium text-slate-700">
+                Public
+              </label>
+            </div>
+            
+            <div className="flex items-center">
+              <input
+                type="radio"
+                id="private"
+                name="visibility"
+                checked={!isPublic}
+                onChange={() => {
+                  router.push('/private-event');
+                }}
+                className="h-4 w-4 text-indigo-500 focus:ring-indigo-400"
+              />
+              <label htmlFor="private" className="ml-2 text-sm font-medium text-slate-700">
+                Private
+              </label>
+            </div>
+          </div>
+        </div>
+
         <div className="flex flex-col md:flex-row gap-8">
           {/* Left Sidebar */}
           <div className="w-full md:w-64 space-y-4">
@@ -627,6 +2317,7 @@ function CreateEventContent() {
                         <option value="arts">Arts & Culture</option>
                         <option value="food">Food & Drink</option>
                         <option value="business">Business</option>
+                        <option value="training">Training</option>
                       </select>
                       <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                         <svg className="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -765,19 +2456,15 @@ function CreateEventContent() {
                               value={state}
                               onChange={(e) => setState(e.target.value)}
                               className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 appearance-none"
+                              disabled={!country || !statesByCountry[country]}
                             >
-                              <option value="">Select state</option>
-                              <option value="AL">Alabama</option>
-                              <option value="AK">Alaska</option>
-                              <option value="CA">California</option>
-                              <option value="NY">New York</option>
-                              <option value="TX">Texas</option>
+                              <option value="">Select state/province</option>
+                              {country && statesByCountry[country]?.map(state => (
+                                <option key={state.value} value={state.value}>
+                                  {state.label}
+                                </option>
+                              ))}
                             </select>
-                            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                              </svg>
-                            </div>
                           </div>
                         </div>
                       </div>
@@ -790,35 +2477,116 @@ function CreateEventContent() {
                           <select
                             id="country"
                             value={country}
-                            onChange={(e) => setCountry(e.target.value)}
+                            onChange={handleCountryChange}
                             className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 appearance-none"
                           >
-                            <option value="">Select</option>
+                            <option value="">Select country</option>
+                            {/* Africa */}
+                            <optgroup label="Africa">
+                              <option value="ng">Nigeria</option>
+                              <option value="za">South Africa</option>
+                              <option value="eg">Egypt</option>
+                              <option value="ke">Kenya</option>
+                              <option value="gh">Ghana</option>
+                              <option value="et">Ethiopia</option>
+                              <option value="tz">Tanzania</option>
+                              <option value="ug">Uganda</option>
+                              <option value="ci">Côte d'Ivoire</option>
+                              <option value="cm">Cameroon</option>
+                              <option value="sn">Senegal</option>
+                              <option value="rw">Rwanda</option>
+                              <option value="mg">Madagascar</option>
+                              <option value="mu">Mauritius</option>
+                              <option value="na">Namibia</option>
+                              <option value="bw">Botswana</option>
+                              <option value="zm">Zambia</option>
+                              <option value="zw">Zimbabwe</option>
+                            </optgroup>
+                            {/* Americas */}
+                            <optgroup label="North America">
                             <option value="us">United States</option>
                             <option value="ca">Canada</option>
-                            <option value="uk">United Kingdom</option>
+                              <option value="mx">Mexico</option>
+                            </optgroup>
+                            <optgroup label="South America">
+                              <option value="br">Brazil</option>
+                              <option value="ar">Argentina</option>
+                              <option value="co">Colombia</option>
+                              <option value="pe">Peru</option>
+                              <option value="cl">Chile</option>
+                            </optgroup>
+                            {/* Europe */}
+                            <optgroup label="Europe">
+                              <option value="gb">United Kingdom</option>
+                              <option value="fr">France</option>
+                              <option value="de">Germany</option>
+                              <option value="it">Italy</option>
+                              <option value="es">Spain</option>
+                              <option value="nl">Netherlands</option>
+                              <option value="be">Belgium</option>
+                              <option value="se">Sweden</option>
+                              <option value="ch">Switzerland</option>
+                              <option value="at">Austria</option>
+                              <option value="pl">Poland</option>
+                              <option value="ie">Ireland</option>
+                              <option value="pt">Portugal</option>
+                              <option value="no">Norway</option>
+                              <option value="dk">Denmark</option>
+                              <option value="fi">Finland</option>
+                            </optgroup>
+                            {/* Asia */}
+                            <optgroup label="Asia">
+                              <option value="jp">Japan</option>
+                              <option value="in">India</option>
+                              <option value="cn">China</option>
+                              <option value="kr">South Korea</option>
+                              <option value="sg">Singapore</option>
+                              <option value="my">Malaysia</option>
+                              <option value="th">Thailand</option>
+                              <option value="vn">Vietnam</option>
+                              <option value="ph">Philippines</option>
+                              <option value="id">Indonesia</option>
+                            </optgroup>
+                            {/* Middle East */}
+                            <optgroup label="Middle East">
+                              <option value="ae">United Arab Emirates</option>
+                              <option value="sa">Saudi Arabia</option>
+                              <option value="qa">Qatar</option>
+                              <option value="kw">Kuwait</option>
+                              <option value="bh">Bahrain</option>
+                              <option value="om">Oman</option>
+                            </optgroup>
+                            {/* Oceania */}
+                            <optgroup label="Oceania">
                             <option value="au">Australia</option>
+                              <option value="nz">New Zealand</option>
+                              <option value="fj">Fiji</option>
+                            </optgroup>
+                            {/* Caribbean */}
+                            <optgroup label="Caribbean">
+                              <option value="jm">Jamaica</option>
+                              <option value="bs">Bahamas</option>
+                              <option value="bb">Barbados</option>
+                              <option value="tt">Trinidad and Tobago</option>
+                            </optgroup>
+                            {/* Central America */}
+                            <optgroup label="Central America">
+                              <option value="pa">Panama</option>
+                              <option value="cr">Costa Rica</option>
+                              <option value="gt">Guatemala</option>
+                              <option value="sv">El Salvador</option>
+                              <option value="hn">Honduras</option>
+                              <option value="ni">Nicaragua</option>
+                              <option value="bz">Belize</option>
+                            </optgroup>
                           </select>
-                          <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                            <svg className="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                            </svg>
-                          </div>
                         </div>
                       </div>
                     </div>
                     
                     {/* Map */}
-                    <div className="mt-4 h-48 bg-slate-200 rounded-md relative overflow-hidden">
-                      <div className="absolute inset-0 flex items-center justify-center text-slate-500">
-                        Map will be displayed here
-                      </div>
-                      <button 
-                        type="button" 
-                        className="absolute top-2 right-2 bg-indigo-500 text-white px-3 py-1 rounded-md text-sm hover:bg-indigo-600"
-                      >
-                        Add location
-                      </button>
+                    <div className="mt-4">
+                      <SimpleMap onLocationSelect={handleLocationSelect} />
                     </div>
                   </div>
                   
@@ -837,10 +2605,81 @@ function CreateEventContent() {
                             id="timeZone"
                             className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 appearance-none"
                           >
-                            <option>PDT (GMT-0800) United States (Los Angeles)</option>
-                            <option>EDT (GMT-0400) United States (New York)</option>
-                            <option>GMT (GMT+0000) United Kingdom (London)</option>
-                            <option>CET (GMT+0100) France (Paris)</option>
+                            {/* North America */}
+                            <optgroup label="North America">
+                              <option value="America/Los_Angeles">PDT (GMT-0700) United States (Los Angeles)</option>
+                              <option value="America/Denver">MDT (GMT-0600) United States (Denver)</option>
+                              <option value="America/Chicago">CDT (GMT-0500) United States (Chicago)</option>
+                              <option value="America/New_York">EDT (GMT-0400) United States (New York)</option>
+                              <option value="America/Anchorage">AKDT (GMT-0800) United States (Anchorage)</option>
+                              <option value="Pacific/Honolulu">HST (GMT-1000) United States (Honolulu)</option>
+                              <option value="America/Toronto">EDT (GMT-0400) Canada (Toronto)</option>
+                              <option value="America/Vancouver">PDT (GMT-0700) Canada (Vancouver)</option>
+                              <option value="America/Mexico_City">CDT (GMT-0500) Mexico (Mexico City)</option>
+                            </optgroup>
+
+                            {/* South America */}
+                            <optgroup label="South America">
+                              <option value="America/Sao_Paulo">BRT (GMT-0300) Brazil (São Paulo)</option>
+                              <option value="America/Buenos_Aires">ART (GMT-0300) Argentina (Buenos Aires)</option>
+                              <option value="America/Bogota">COT (GMT-0500) Colombia (Bogota)</option>
+                              <option value="America/Lima">PET (GMT-0500) Peru (Lima)</option>
+                              <option value="America/Santiago">CLT (GMT-0400) Chile (Santiago)</option>
+                            </optgroup>
+
+                            {/* Europe */}
+                            <optgroup label="Europe">
+                              <option value="Europe/London">BST (GMT+0100) United Kingdom (London)</option>
+                              <option value="Europe/Paris">CEST (GMT+0200) France (Paris)</option>
+                              <option value="Europe/Berlin">CEST (GMT+0200) Germany (Berlin)</option>
+                              <option value="Europe/Rome">CEST (GMT+0200) Italy (Rome)</option>
+                              <option value="Europe/Madrid">CEST (GMT+0200) Spain (Madrid)</option>
+                              <option value="Europe/Amsterdam">CEST (GMT+0200) Netherlands (Amsterdam)</option>
+                              <option value="Europe/Stockholm">CEST (GMT+0200) Sweden (Stockholm)</option>
+                              <option value="Europe/Oslo">CEST (GMT+0200) Norway (Oslo)</option>
+                              <option value="Europe/Moscow">MSK (GMT+0300) Russia (Moscow)</option>
+                            </optgroup>
+
+                            {/* Asia */}
+                            <optgroup label="Asia">
+                              <option value="Asia/Tokyo">JST (GMT+0900) Japan (Tokyo)</option>
+                              <option value="Asia/Shanghai">CST (GMT+0800) China (Shanghai)</option>
+                              <option value="Asia/Seoul">KST (GMT+0900) South Korea (Seoul)</option>
+                              <option value="Asia/Singapore">SGT (GMT+0800) Singapore</option>
+                              <option value="Asia/Hong_Kong">HKT (GMT+0800) Hong Kong</option>
+                              <option value="Asia/Kolkata">IST (GMT+0530) India (Mumbai)</option>
+                              <option value="Asia/Bangkok">ICT (GMT+0700) Thailand (Bangkok)</option>
+                              <option value="Asia/Manila">PHT (GMT+0800) Philippines (Manila)</option>
+                              <option value="Asia/Jakarta">WIB (GMT+0700) Indonesia (Jakarta)</option>
+                            </optgroup>
+
+                            {/* Middle East */}
+                            <optgroup label="Middle East">
+                              <option value="Asia/Dubai">GST (GMT+0400) UAE (Dubai)</option>
+                              <option value="Asia/Riyadh">AST (GMT+0300) Saudi Arabia (Riyadh)</option>
+                              <option value="Asia/Qatar">AST (GMT+0300) Qatar (Doha)</option>
+                              <option value="Asia/Kuwait">AST (GMT+0300) Kuwait City</option>
+                              <option value="Asia/Tehran">IRST (GMT+0330) Iran (Tehran)</option>
+                              <option value="Asia/Jerusalem">IST (GMT+0300) Israel (Jerusalem)</option>
+                            </optgroup>
+
+                            {/* Oceania */}
+                            <optgroup label="Oceania">
+                              <option value="Australia/Sydney">AEST (GMT+1000) Australia (Sydney)</option>
+                              <option value="Australia/Melbourne">AEST (GMT+1000) Australia (Melbourne)</option>
+                              <option value="Australia/Perth">AWST (GMT+0800) Australia (Perth)</option>
+                              <option value="Pacific/Auckland">NZST (GMT+1200) New Zealand (Auckland)</option>
+                              <option value="Pacific/Fiji">FJT (GMT+1200) Fiji</option>
+                            </optgroup>
+
+                            {/* Africa */}
+                            <optgroup label="Africa">
+                              <option value="Africa/Cairo">EET (GMT+0200) Egypt (Cairo)</option>
+                              <option value="Africa/Johannesburg">SAST (GMT+0200) South Africa (Johannesburg)</option>
+                              <option value="Africa/Lagos">WAT (GMT+0100) Nigeria (Lagos)</option>
+                              <option value="Africa/Nairobi">EAT (GMT+0300) Kenya (Nairobi)</option>
+                              <option value="Africa/Casablanca">WEST (GMT+0100) Morocco (Casablanca)</option>
+                            </optgroup>
                           </select>
                           <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                             <svg className="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -925,39 +2764,6 @@ function CreateEventContent() {
                           Add organizer
                         </button>
                       </div>
-                    </div>
-                  </div>
-                  
-                  {/* Public/Private */}
-                  <div className="flex space-x-8 pt-4">
-                    <div className="flex items-center">
-                      <input
-                        type="radio"
-                        id="public"
-                        name="visibility"
-                        checked={isPublic}
-                        onChange={() => setIsPublic(true)}
-                        className="h-4 w-4 text-indigo-500 focus:ring-indigo-400"
-                      />
-                      <label htmlFor="public" className="ml-2 text-sm font-medium text-slate-700">
-                        Public
-                      </label>
-                    </div>
-                    
-                    <div className="flex items-center">
-                      <input
-                        type="radio"
-                        id="private"
-                        name="visibility"
-                        checked={!isPublic}
-                        onChange={() => {
-                          router.push('/private-event');
-                        }}
-                        className="h-4 w-4 text-indigo-500 focus:ring-indigo-400"
-                      />
-                      <label htmlFor="private" className="ml-2 text-sm font-medium text-slate-700">
-                        Private
-                      </label>
                     </div>
                   </div>
                 </div>
@@ -1100,84 +2906,78 @@ function CreateEventContent() {
                     )}
                     
                     {/* Discounts */}
-                    <div className="mt-6">
-                      <h3 className="text-sm font-medium text-slate-700 mb-1">Discounts</h3>
-                      <p className="text-xs text-slate-500 mb-4">Set the conditions for your discounts</p>
+                    <div className={`space-y-4 ${!isPaid ? 'hidden' : ''}`}>
+                      <h3 className="text-sm font-medium text-slate-700">Discounts</h3>
+                      <p className="text-xs text-slate-500">Set the conditions for your discounts</p>
                       
-                      <div className="space-y-4">
-                        {/* Early Bird */}
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                          <div className="flex items-center min-w-[150px]">
+                      {/* Early bird buys */}
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center">
                             <input
                               type="checkbox"
                               id="earlyBird"
-                              className="h-4 w-4 text-indigo-500 focus:ring-indigo-400 rounded"
+                            checked={hasEarlyBird}
+                            onChange={(e) => setHasEarlyBird(e.target.checked)}
+                            className="h-4 w-4 text-indigo-500 focus:ring-indigo-400"
                             />
-                            <label htmlFor="earlyBird" className="ml-2 text-sm font-medium text-slate-700">
+                          <label htmlFor="earlyBird" className="ml-2 text-sm text-slate-700">
                               Early bird buys
                             </label>
                           </div>
-                          <div className="flex flex-col sm:flex-row gap-2 w-full">
                             <input
                               type="number"
                               placeholder="Days to qualify"
-                              className="flex-1 px-3 py-1 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 text-sm"
-                              min="1"
-                            />
-                            <div className="relative w-full sm:w-32">
+                          value={earlyBirdDays}
+                          onChange={(e) => setEarlyBirdDays(e.target.value)}
+                          className="flex-1 px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          disabled={!hasEarlyBird}
+                        />
                               <select
-                                className="w-full px-3 py-1 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 appearance-none text-sm bg-white"
+                          value={earlyBirdDiscount}
+                          onChange={(e) => setEarlyBirdDiscount(e.target.value)}
+                          className="px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          disabled={!hasEarlyBird}
                               >
                                 <option value="">Select discount</option>
                                 <option value="10">10% off</option>
                                 <option value="20">20% off</option>
                                 <option value="30">30% off</option>
                               </select>
-                              <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
-                                <svg className="h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                </svg>
-                              </div>
-                            </div>
-                          </div>
                         </div>
                         
-                        {/* Multiple Buys */}
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                          <div className="flex items-center min-w-[150px]">
+                      {/* Multiple buys */}
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center">
                             <input
                               type="checkbox"
                               id="multipleBuys"
-                              className="h-4 w-4 text-indigo-500 focus:ring-indigo-400 rounded"
+                            checked={hasMultipleBuys}
+                            onChange={(e) => setHasMultipleBuys(e.target.checked)}
+                            className="h-4 w-4 text-indigo-500 focus:ring-indigo-400"
                             />
-                            <label htmlFor="multipleBuys" className="ml-2 text-sm font-medium text-slate-700">
+                          <label htmlFor="multipleBuys" className="ml-2 text-sm text-slate-700">
                               Multiple buys
                             </label>
                           </div>
-                          <div className="flex flex-col sm:flex-row gap-2 w-full">
                             <input
                               type="number"
                               placeholder="Tickets to qualify"
-                              className="flex-1 px-3 py-1 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 text-sm"
-                              min="1"
-                            />
-                            <div className="relative w-full sm:w-32">
+                          value={multipleBuysMinTickets}
+                          onChange={(e) => setMultipleBuysMinTickets(e.target.value)}
+                          className="flex-1 px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          disabled={!hasMultipleBuys}
+                        />
                               <select
-                                className="w-full px-3 py-1 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 appearance-none text-sm bg-white"
+                          value={multipleBuysDiscount}
+                          onChange={(e) => setMultipleBuysDiscount(e.target.value)}
+                          className="px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          disabled={!hasMultipleBuys}
                               >
                                 <option value="">Select discount</option>
                                 <option value="10">10% off</option>
                                 <option value="20">20% off</option>
                                 <option value="30">30% off</option>
                               </select>
-                              <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
-                                <svg className="h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                </svg>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
                       </div>
                     </div>
                     
@@ -1267,18 +3067,22 @@ function CreateEventContent() {
                     <div className="mt-6">
                       <div className="flex items-center justify-between mb-2">
                         <h3 className="text-sm font-medium text-slate-700">Promotion</h3>
-                        <div className="relative inline-block w-10 mr-2 align-middle select-none">
+                        <div className="relative inline-block w-12 align-middle select-none">
                           <input 
                             type="checkbox" 
                             id="promotion" 
-                            className="sr-only"
+                            checked={isPromotionEnabled}
+                            onChange={(e) => setIsPromotionEnabled(e.target.checked)}
+                            className="sr-only peer"
                           />
                           <label 
                             htmlFor="promotion"
-                            className="block h-6 w-12 rounded-full bg-slate-200 cursor-pointer"
+                            className="block overflow-hidden h-6 rounded-full bg-gray-200 cursor-pointer peer-checked:bg-indigo-600 transition-colors duration-200"
                           ></label>
                           <span 
-                            className="absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ease-in-out"
+                            className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ease-in-out ${
+                              isPromotionEnabled ? 'translate-x-6' : 'translate-x-0'
+                            }`}
                           ></span>
                         </div>
                       </div>
@@ -1320,7 +3124,7 @@ function CreateEventContent() {
             </form>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

@@ -13,31 +13,26 @@ export default function AboutUs() {
       name: "The Visionary",
       position: "Chief Executive Officer",
       bio: "Leading strategy, growth, and big-picture thinking to take EventIP to new heights.",
-      image: "https://randomuser.me/api/portraits/men/41.jpg"
     },
     {
       name: "The Storyteller",
       position: "Chief Marketing Officer",
       bio: "Building the brand, driving excitement, and ensuring events get the spotlight they deserve.",
-      image: "https://randomuser.me/api/portraits/women/63.jpg"
     },
     {
       name: "The Connector",
       position: "Head of Internal & External Affairs",
       bio: "Forging partnerships, securing sponsorships, and strengthening relationships with key stakeholders.",
-      image: "https://randomuser.me/api/portraits/men/35.jpg"
     },
     {
       name: "The Protector",
       position: "Head of Legal",
       bio: "Ensuring smooth operations with compliance, security, and trust at every level of our business.",
-      image: "https://randomuser.me/api/portraits/women/44.jpg"
     },
     {
       name: "The Innovator",
       position: "Chief Technology Officer",
       bio: "Integrating the latest tech to streamline ticketing, event logistics, and digital experiences.",
-      image: "https://randomuser.me/api/portraits/men/22.jpg"
     }
   ];
 
@@ -298,7 +293,7 @@ export default function AboutUs() {
         </section>
         
         {/* Team Section */}
-        <section className="py-20 px-4 bg-amber-50">
+        <section className="py-20 px-4">
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-16">
               <motion.h2 
@@ -311,38 +306,21 @@ export default function AboutUs() {
                 Meet Our Team
               </motion.h2>
               <div className="h-1 w-20 bg-amber-500 mx-auto mb-10"></div>
-              <motion.p 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: 0.2 }}
-                className="text-xl text-gray-600 max-w-4xl mx-auto"
-              >
-                A passionate team dedicated to transforming the events industry.
-              </motion.p>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {teamMembers.map((member, index) => (
                 <motion.div
                   key={index}
-                  initial={{ opacity: 0, y: 30 }}
+                  initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ duration: 0.5, delay: index * 0.1 }}
-                  className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-shadow"
+                  className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow duration-300"
                 >
-                  <div className="relative h-72 w-full">
-                    <Image
-                      src={member.image}
-                      alt={member.name}
-                      fill
-                      className="object-cover"
-                    />
-                  </div>
-                  <div className="p-6">
-                    <h3 className="text-xl font-bold text-gray-800 mb-1">{member.name}</h3>
-                    <p className="text-amber-600 mb-4">{member.position}</p>
+                  <div className="text-center">
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">{member.name}</h3>
+                    <p className="text-amber-600 font-medium mb-4">{member.position}</p>
                     <p className="text-gray-600">{member.bio}</p>
                   </div>
                 </motion.div>
@@ -405,54 +383,6 @@ export default function AboutUs() {
                   </motion.div>
                 ))}
               </div>
-            </div>
-          </div>
-        </section>
-        
-        {/* Stats Section */}
-        <section className="py-20 px-4">
-          <div className="max-w-7xl mx-auto">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5 }}
-                className="bg-white p-6 rounded-xl shadow-md text-center"
-              >
-                <div className="text-5xl font-bold text-amber-600 mb-4">45+</div>
-                <p className="text-gray-600">Countries</p>
-              </motion.div>
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: 0.1 }}
-                className="bg-white p-6 rounded-xl shadow-md text-center"
-              >
-                <div className="text-5xl font-bold text-amber-600 mb-4">5M+</div>
-                <p className="text-gray-600">Active Users</p>
-              </motion.div>
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: 0.2 }}
-                className="bg-white p-6 rounded-xl shadow-md text-center"
-              >
-                <div className="text-5xl font-bold text-amber-600 mb-4">20K+</div>
-                <p className="text-gray-600">Event Organizers</p>
-              </motion.div>
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: 0.3 }}
-                className="bg-white p-6 rounded-xl shadow-md text-center"
-              >
-                <div className="text-5xl font-bold text-amber-600 mb-4">250K+</div>
-                <p className="text-gray-600">Events Hosted</p>
-              </motion.div>
             </div>
           </div>
         </section>

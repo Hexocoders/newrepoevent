@@ -82,6 +82,30 @@ export default function SignIn() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    try {
+      setError(null);
+      setLoading(true);
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/signin`
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+    } catch (error) {
+      console.error('Google sign-in error:', error);
+      setError('Failed to sign in with Google. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Check for OAuth callback on component mount
   useEffect(() => {
     const checkOAuthSession = async () => {
@@ -277,7 +301,11 @@ export default function SignIn() {
               </div>
               
               <div className="flex space-x-2 sm:space-x-4 mt-3 sm:mt-4">
-                <button className="flex-1 bg-white border border-gray-200 rounded-lg p-2 sm:p-3 shadow-sm hover:bg-gray-50 transition-colors flex items-center justify-center">
+                <button 
+                  onClick={handleGoogleSignIn}
+                  disabled={loading}
+                  className="flex-1 bg-white border border-gray-200 rounded-lg p-2 sm:p-3 shadow-sm hover:bg-gray-50 transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   <svg className="h-4 w-4 sm:h-5 sm:w-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M22.5006 12.2332C22.5006 11.3699 22.4291 10.7399 22.2744 10.0865H12.2148V13.9832H18.1196C18.0006 14.9515 17.3577 16.4099 15.9291 17.3898L15.9096 17.5203L19.0902 19.935L19.3101 19.9565C21.3338 18.1249 22.5006 15.4298 22.5006 12.2332Z" fill="#4285F4"/>
                     <path d="M12.214 22.5C15.1068 22.5 17.5353 21.5666 19.3092 19.9566L15.9282 17.39C15.0235 18.0083 13.8092 18.4399 12.214 18.4399C9.38069 18.4399 6.97596 16.6083 6.11874 14.0766L5.99309 14.0871L2.68583 16.5954L2.64258 16.7132C4.40446 20.1433 8.0235 22.5 12.214 22.5Z" fill="#34A853"/>

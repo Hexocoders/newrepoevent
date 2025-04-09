@@ -311,8 +311,8 @@ function CalendarContent() {
                   </button>
                   <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-r from-indigo-600 to-blue-500 flex items-center justify-center text-white font-medium shadow-md">
-                        {initials}
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-r from-indigo-600 to-blue-500 flex items-center justify-center text-white font-medium shadow-md">
+                    {initials}
                       </div>
                       <div className="hidden sm:block">
                         <div className="text-sm font-medium text-slate-800">{fullName}</div>

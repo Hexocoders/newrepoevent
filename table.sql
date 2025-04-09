@@ -18,6 +18,8 @@ CREATE TABLE users (
     first_name VARCHAR(255) NOT NULL,
     last_name VARCHAR(255) NOT NULL,
     is_google_user BOOLEAN DEFAULT false,
+    reset_token TEXT,
+    reset_token_expires TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW())
 );
@@ -44,6 +46,14 @@ CREATE TABLE events (
     share_token UUID DEFAULT uuid_generate_v4(),
     published_at TIMESTAMP WITH TIME ZONE,
     scheduled_publish_date TIMESTAMP WITH TIME ZONE,
+    -- Early bird discount fields
+    has_early_bird BOOLEAN DEFAULT false,
+    early_bird_days INTEGER,
+    early_bird_discount INTEGER, -- percentage discount
+    -- Multiple buys discount fields
+    has_multiple_buys BOOLEAN DEFAULT false,
+    multiple_buys_min_tickets INTEGER,
+    multiple_buys_discount INTEGER, -- percentage discount
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW())
 );
