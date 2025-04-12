@@ -79,26 +79,26 @@ function ReviewEventContent() {
           // Save all ticket tiers
           setTicketTiers(eventData.ticket_tiers);
           
-          // Separate standard and premium tiers based on tier_title existence
-          const standard = eventData.ticket_tiers.find(tier => !tier.tier_title);
-          const premium = eventData.ticket_tiers.filter(tier => tier.tier_title);
+          // Separate standard and premium tiers based on is_premium flag
+          const standard = eventData.ticket_tiers.find(tier => !tier.is_premium);
+          const premium = eventData.ticket_tiers.filter(tier => tier.is_premium);
           
           setStandardTicket(standard || null);
           setPremiumTiers(premium || []);
           
           // If it's a paid event, set the price and quantity from the standard tier for backward compatibility
           if (eventData.is_paid && standard) {
-          setEvent(prev => ({
-            ...prev,
+            setEvent(prev => ({
+              ...prev,
               ticket_price: standard.price,
               ticket_quantity: standard.quantity
-          }));
+            }));
           } else if (!eventData.is_paid && standard) {
-          // If it's a free event but has tickets
-          setEvent(prev => ({
-            ...prev,
+            // If it's a free event but has tickets
+            setEvent(prev => ({
+              ...prev,
               ticket_quantity: standard.quantity
-          }));
+            }));
           }
         }
       } catch (error) {
@@ -492,17 +492,17 @@ function ReviewEventContent() {
                         {premiumTiers.map((tier, index) => (
                           <div key={index} className="bg-slate-50 p-4 rounded-lg">
                             <div className="flex justify-between items-center mb-2">
-                              <h4 className="text-sm font-semibold text-slate-700">{tier.tier_title || `Premium Tier ${index + 1}`}</h4>
-                              <span className="text-sm font-medium text-indigo-600">₦{tier.tier_price || '0'}</span>
+                              <h4 className="text-sm font-semibold text-slate-700">{tier.name || `Premium Tier ${index + 1}`}</h4>
+                              <span className="text-sm font-medium text-indigo-600">₦{tier.price || '0'}</span>
                             </div>
                             
                             <p className="text-xs text-slate-600 mb-2">
-                              {tier.tier_description || 'No description provided'}
+                              {tier.description || 'No description provided'}
                             </p>
                             
                             <div className="flex justify-between items-center text-xs">
                               <span className="text-slate-500">Available tickets:</span>
-                              <span className="font-medium text-slate-700">{tier.tier_quantity || '0'}</span>
+                              <span className="font-medium text-slate-700">{tier.quantity || '0'}</span>
                             </div>
                           </div>
                         ))}
