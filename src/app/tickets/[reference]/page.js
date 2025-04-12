@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { supabase } from '../../../lib/supabaseClient';
@@ -48,11 +48,28 @@ function ClientQRCode({ value }) {
 }
 
 export default function TicketPage() {
-  const { reference } = useParams();
+  const router = useRouter();
+  const params = useParams();
   const [ticket, setTicket] = useState(null);
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const reference = params.reference;
+  
+  // Format date helper function
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Not specified';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    } catch (e) {
+      return 'Invalid date';
+    }
+  };
 
   useEffect(() => {
     async function fetchTicketData() {
@@ -70,6 +87,8 @@ export default function TicketPage() {
             // Only use if reference matches
             if (parsedData.reference === reference) {
               console.log('Using paid ticket data from localStorage:', parsedData);
+              console.log('Event link in parsed data:', parsedData.event_link);
+              console.log('Online event link in parsed data:', parsedData.online_event_link);
               setTicket(parsedData);
               
               // Set event data from localStorage if available
@@ -78,7 +97,11 @@ export default function TicketPage() {
                   title: parsedData.event_title || 'Event',
                   date: parsedData.event_date || parsedData.purchase_date,
                   time: parsedData.event_time || 'Time not available',
-                  location: parsedData.event_location || 'Location not available'
+                  location: parsedData.event_location || 'Location not available',
+                  is_online: parsedData.is_online || false,
+                  event_link: parsedData.event_link || null,
+                  event_type: parsedData.event_type || 'physical',
+                  online_event_link: parsedData.online_event_link || null
                 });
                 setLoading(false);
                 return;
@@ -89,18 +112,25 @@ export default function TicketPage() {
                 if (parsedData.event_id) {
                   const { data: eventData, error: eventError } = await supabase
                     .from('events')
-                    .select('*')
+                    .select('*, is_online, event_link, event_type, online_event_link')
                     .eq('id', parsedData.event_id)
                     .maybeSingle();
                   
                   if (!eventError && eventData) {
+                    console.log('Event data from database:', eventData);
+                    console.log('Event link in database:', eventData.event_link);
+                    console.log('Online event link in database:', eventData.online_event_link);
                     setEvent(eventData);
                   } else {
                     setEvent({
                       title: parsedData.event_title || 'Event',
                       date: parsedData.event_date || parsedData.purchase_date,
                       time: parsedData.event_time || 'Time not available',
-                      location: parsedData.event_location || 'Location not available'
+                      location: parsedData.event_location || 'Location not available',
+                      is_online: parsedData.is_online || false,
+                      event_link: parsedData.event_link || null,
+                      event_type: parsedData.event_type || 'physical',
+                      online_event_link: parsedData.online_event_link || null
                     });
                   }
                 }
@@ -110,7 +140,11 @@ export default function TicketPage() {
                   title: parsedData.event_title || 'Event',
                   date: parsedData.event_date || parsedData.purchase_date,
                   time: parsedData.event_time || 'Time not available',
-                  location: parsedData.event_location || 'Location not available'
+                  location: parsedData.event_location || 'Location not available',
+                  is_online: parsedData.is_online || false,
+                  event_link: parsedData.event_link || null,
+                  event_type: parsedData.event_type || 'physical',
+                  online_event_link: parsedData.online_event_link || null
                 });
               }
               
@@ -136,7 +170,11 @@ export default function TicketPage() {
                   title: parsedData.event_title || 'Event',
                   date: parsedData.event_date || parsedData.purchase_date,
                   time: parsedData.event_time || 'Time not available',
-                  location: parsedData.event_location || 'Location not available'
+                  location: parsedData.event_location || 'Location not available',
+                  is_online: parsedData.is_online || false,
+                  event_link: parsedData.event_link || null,
+                  event_type: parsedData.event_type || 'physical',
+                  online_event_link: parsedData.online_event_link || null
                 });
                 setLoading(false);
                 return;
@@ -147,18 +185,25 @@ export default function TicketPage() {
                 if (parsedData.event_id) {
                   const { data: eventData, error: eventError } = await supabase
                     .from('events')
-                    .select('*')
+                    .select('*, is_online, event_link, event_type, online_event_link')
                     .eq('id', parsedData.event_id)
                     .maybeSingle();
                   
                   if (!eventError && eventData) {
+                    console.log('Event data from database:', eventData);
+                    console.log('Event link in database:', eventData.event_link);
+                    console.log('Online event link in database:', eventData.online_event_link);
                     setEvent(eventData);
                   } else {
                     setEvent({
                       title: parsedData.event_title || 'Event',
                       date: parsedData.event_date || parsedData.purchase_date,
                       time: parsedData.event_time || 'Time not available',
-                      location: parsedData.event_location || 'Location not available'
+                      location: parsedData.event_location || 'Location not available',
+                      is_online: parsedData.is_online || false,
+                      event_link: parsedData.event_link || null,
+                      event_type: parsedData.event_type || 'physical',
+                      online_event_link: parsedData.online_event_link || null
                     });
                   }
                 }
@@ -168,7 +213,11 @@ export default function TicketPage() {
                   title: parsedData.event_title || 'Event',
                   date: parsedData.event_date || parsedData.purchase_date,
                   time: parsedData.event_time || 'Time not available',
-                  location: parsedData.event_location || 'Location not available'
+                  location: parsedData.event_location || 'Location not available',
+                  is_online: parsedData.is_online || false,
+                  event_link: parsedData.event_link || null,
+                  event_type: parsedData.event_type || 'physical',
+                  online_event_link: parsedData.online_event_link || null
                 });
               }
               
@@ -203,7 +252,11 @@ export default function TicketPage() {
             title: paidTicketData.event_title || 'Event',
             date: paidTicketData.event_date || paidTicketData.purchase_date,
             time: paidTicketData.event_time || 'Time not available',
-            location: paidTicketData.event_location || 'Location not available'
+            location: paidTicketData.event_location || 'Location not available',
+            is_online: paidTicketData.is_online || false,
+            event_link: paidTicketData.event_link || null,
+            event_type: paidTicketData.event_type || 'physical',
+            online_event_link: paidTicketData.online_event_link || null
           });
           
           console.log('Loaded paid ticket data:', { 
@@ -239,7 +292,7 @@ export default function TicketPage() {
             if (generalTicketData.event_id) {
               const { data: eventData, error: eventError } = await supabase
                 .from('events')
-                .select('*')
+                .select('*, is_online, event_link, event_type, online_event_link')
                 .eq('id', generalTicketData.event_id)
                 .maybeSingle();
               
@@ -250,7 +303,11 @@ export default function TicketPage() {
                   title: 'Event',
                   date: generalTicketData.purchase_date,
                   time: 'Time not available',
-                  location: 'Location not available'
+                  location: 'Location not available',
+                  is_online: false,
+                  event_link: null,
+                  event_type: 'physical',
+                  online_event_link: null
                 });
               }
             }
@@ -260,7 +317,11 @@ export default function TicketPage() {
               title: 'Event',
               date: generalTicketData.purchase_date,
               time: 'Time not available',
-              location: 'Location not available'
+              location: 'Location not available',
+              is_online: false,
+              event_link: null,
+              event_type: 'physical',
+              online_event_link: null
             });
           }
           
@@ -297,7 +358,11 @@ export default function TicketPage() {
             title: freeTicketData.event_title || 'Event',
             date: freeTicketData.event_date || freeTicketData.purchase_date,
             time: freeTicketData.event_time || 'Time not available',
-            location: freeTicketData.event_location || 'Location not available'
+            location: freeTicketData.event_location || 'Location not available',
+            is_online: freeTicketData.is_online || false,
+            event_link: freeTicketData.event_link || null,
+            event_type: freeTicketData.event_type || 'physical',
+            online_event_link: freeTicketData.online_event_link || null
           });
           
           console.log('Loaded free ticket data:', { 
@@ -329,7 +394,11 @@ export default function TicketPage() {
               title: parsedData.event_title || 'Event',
               date: parsedData.event_date || parsedData.purchase_date,
               time: parsedData.event_time || 'Time not available',
-              location: parsedData.event_location || 'Location not available'
+              location: parsedData.event_location || 'Location not available',
+              is_online: parsedData.is_online || false,
+              event_link: parsedData.event_link || null,
+              event_type: parsedData.event_type || 'physical',
+              online_event_link: parsedData.online_event_link || null
             });
             setError(null);
             return;
@@ -345,7 +414,11 @@ export default function TicketPage() {
               title: parsedData.event_title || 'Event',
               date: parsedData.event_date || parsedData.purchase_date,
               time: parsedData.event_time || 'Time not available',
-              location: parsedData.event_location || 'Location not available'
+              location: parsedData.event_location || 'Location not available',
+              is_online: parsedData.is_online || false,
+              event_link: parsedData.event_link || null,
+              event_type: parsedData.event_type || 'physical',
+              online_event_link: parsedData.online_event_link || null
             });
             setError(null);
           }
@@ -359,6 +432,47 @@ export default function TicketPage() {
       fetchTicketData();
     }
   }, [reference]);
+
+  // Additional effect to fetch event data directly if we have an event_id
+  useEffect(() => {
+    async function fetchEventDirectly() {
+      if (ticket?.event_id) {
+        console.log("Fetching event data directly for event ID:", ticket.event_id);
+        try {
+          const { data: eventData, error: eventError } = await supabase
+            .from('events')
+            .select('*, event_link, online_event_link')
+            .eq('id', ticket.event_id)
+            .single();
+          
+          if (eventError) {
+            console.error("Error fetching event:", eventError);
+            return;
+          }
+          
+          if (eventData) {
+            console.log("Found event data directly:", eventData);
+            console.log("Event link from direct query:", eventData.event_link);
+            console.log("Online event link from direct query:", eventData.online_event_link);
+            
+            // Update the event state with this data
+            setEvent(prev => ({
+              ...prev,
+              ...eventData,
+              event_link: eventData.event_link || prev?.event_link || '',
+              online_event_link: eventData.online_event_link || prev?.online_event_link || ''
+            }));
+          }
+        } catch (error) {
+          console.error("Error in direct event fetch:", error);
+        }
+      }
+    }
+    
+    if (ticket) {
+      fetchEventDirectly();
+    }
+  }, [ticket]);
 
   if (loading) {
     return (
@@ -397,33 +511,12 @@ export default function TicketPage() {
   const eventDate = event?.date ? new Date(event.date) : 
                     ticket.purchase_date ? new Date(ticket.purchase_date) : new Date();
   
-  const formattedDate = eventDate.toLocaleDateString('en-US', { 
-    weekday: 'long', 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
-  });
+  const formattedDate = formatDate(eventDate);
   
   // Generate QR code data
   const generateQRData = () => {
     if (!ticket || !event) return '';
     
-    // Format date for display
-    const formatDate = (dateString) => {
-      if (!dateString) return 'Not specified';
-      try {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('en-US', {
-          weekday: 'long',
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric'
-        });
-      } catch (e) {
-        return dateString;
-      }
-    };
-
     // Format time for display
     const formatTime = (timeString) => {
       if (!timeString) return 'Not specified';
@@ -443,12 +536,34 @@ export default function TicketPage() {
       }
     };
     
+    // Find the event link from all possible sources
+    const getEventLink = () => {
+      if (event?.event_link && event.event_link !== '') {
+        return event.event_link;
+      } 
+      if (event?.online_event_link && event.online_event_link !== '') {
+        return event.online_event_link;
+      }
+      if (ticket?.event_link && ticket.event_link !== '') {
+        return ticket.event_link;
+      }
+      if (ticket?.online_event_link && ticket.online_event_link !== '') {
+        return ticket.online_event_link;
+      }
+      return '';
+    };
+    
+    // Get the event link
+    const eventLink = getEventLink();
+    
     // Create a plain text version with line breaks instead of JSON
     return `EVENT: ${event.title || 'Event'}
 DESCRIPTION: ${event.description?.substring(0, 100)}${event.description?.length > 100 ? '...' : ''}
 DATE: ${formatDate(event.date)}
 TIME: ${formatTime(event.time || event.start_time)} - ${formatTime(event.end_time)}
-LOCATION: ${event.location || event.venue || 'Not specified'}
+LOCATION: ${(event.is_online || event.event_type === 'online') ? 'Online Event' : (event.location || event.venue || 'Not specified')}
+${eventLink ? `EVENT LINK: ${eventLink}` : ''}
+TICKET TYPE: ${ticket.ticket_type || 'Standard Ticket'}
 TICKET HOLDER: ${ticket.customer_name || ticket.buyer_name || ticket.customer_email || 'Not specified'}
 TICKET CODE: ${ticket.ticket_code || ticket.reference}
 REFERENCE: ${ticket.reference}
@@ -463,6 +578,23 @@ VERIFICATION: ${ticket.id ? ticket.id.substring(0, 6).toUpperCase() : reference.
 
   // Use customer_name from ticket if available, or format from email
   const attendeeName = ticket.customer_name || ticket.customer_email;
+  
+  // Helper function to get the best available event link
+  const getBestEventLink = () => {
+    if (event?.event_link && event.event_link !== '') {
+      return event.event_link;
+    } 
+    if (event?.online_event_link && event.online_event_link !== '') {
+      return event.online_event_link;
+    }
+    if (ticket?.event_link && ticket.event_link !== '') {
+      return ticket.event_link;
+    }
+    if (ticket?.online_event_link && ticket.online_event_link !== '') {
+      return ticket.online_event_link;
+    }
+    return 'No link available';
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
@@ -518,6 +650,13 @@ VERIFICATION: ${ticket.id ? ticket.id.substring(0, 6).toUpperCase() : reference.
                     {ticket.status === 'active' ? 'Confirmed' : ticket.status}
                   </p>
                 </div>
+                {/* Event Link */}
+                <div className="col-span-2">
+                  <p className="text-sm text-gray-500">Event Link</p>
+                  <p className="font-medium break-all">
+                    {getBestEventLink()}
+                  </p>
+                </div>
               </div>
             </div>
             
@@ -548,7 +687,7 @@ async function fetchEventData(ticketData) {
   if (ticketData.event_id) {
     const { data: eventData, error: eventError } = await supabase
       .from('events')
-      .select('*')
+      .select('*, is_online, event_link, event_type, online_event_link')
       .eq('id', ticketData.event_id)
       .maybeSingle();
     
@@ -560,7 +699,11 @@ async function fetchEventData(ticketData) {
         title: 'Event',
         date: ticketData.purchase_date,
         time: 'Time not available',
-        location: 'Location not available'
+        location: 'Location not available',
+        is_online: false,
+        event_link: null,
+        event_type: 'physical',
+        online_event_link: null
       });
     }
   }

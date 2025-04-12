@@ -320,7 +320,9 @@ function MyEventsContent() {
       const ticketInfoForRefunds = ticketsToRefund.map(ticket => ({
         id: ticket.id,
         price_paid: ticket.price_paid,
+        refund_amount: parseFloat(ticket.price_paid) * 0.97, // Refund 97%, keep 3% fee
         transaction_id: ticket.transaction_id || ticket.reference,
+        quantity: ticket.quantity || 1,
         event_id: eventId
       }));
       
@@ -348,8 +350,8 @@ function MyEventsContent() {
               },
               body: JSON.stringify({
                 transaction_id: paymentRef,
-                amount: ticket.price_paid,
-                reason: 'Event deleted by organizer',
+                amount: ticket.refund_amount, // Use the calculated refund amount (97%)
+                reason: `Event deleted by organizer (refunding ${ticket.quantity} ticket(s) minus 3% fee)`,
                 event_id: eventId
               }),
             });

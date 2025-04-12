@@ -21,7 +21,8 @@ export async function POST(request) {
       ticket_type,
       price_paid,
       transaction_id,
-      ticket_tier_id
+      ticket_tier_id,
+      quantity = 1 // Get the quantity with default value of 1
     } = ticketData;
 
     // Validation of required fields only
@@ -81,6 +82,7 @@ export async function POST(request) {
     const originalAmount = parseFloat(price_paid) || 0;
     
     console.log('Original amount:', originalAmount, 'Full amount will be stored (no platform fee deduction)');
+    console.log('Ticket quantity:', quantity);
 
     // Prepare data for insertion into paid_tickets table
     const paidTicketData = {
@@ -99,7 +101,8 @@ export async function POST(request) {
       ticket_type: ticket_type || 'General Admission',
       price_paid: originalAmount, // Store the full amount without deduction
       status: 'active',
-      purchase_date: new Date().toISOString()
+      purchase_date: new Date().toISOString(),
+      quantity: quantity // Add the quantity parameter
     };
 
     // Save to paid_tickets table
@@ -119,13 +122,46 @@ export async function POST(request) {
     
     console.log('Paid ticket saved successfully:', paidTicket);
     
+    // Manually update the ticket_tier's paid_quantity_sold field if applicable
+    if (ticket_tier_id) {
+      try {
+        // First get the current value
+        const { data: tierData, error: tierError } = await supabase
+          .from('ticket_tiers')
+          .select('paid_quantity_sold')
+          .eq('id', ticket_tier_id)
+          .single();
+          
+        if (!tierError && tierData) {
+          // Calculate the new value
+          const currentQuantity = tierData.paid_quantity_sold || 0;
+          const newQuantity = currentQuantity + quantity;
+          
+          // Update the ticket tier
+          const { error: updateError } = await supabase
+            .from('ticket_tiers')
+            .update({ paid_quantity_sold: newQuantity })
+            .eq('id', ticket_tier_id);
+            
+          if (updateError) {
+            console.error('Error updating ticket tier quantity:', updateError);
+          } else {
+            console.log(`Successfully updated ticket tier quantity from ${currentQuantity} to ${newQuantity}`);
+          }
+        }
+      } catch (error) {
+        console.error('Error updating ticket tier:', error);
+      }
+    }
+    
     return NextResponse.json({
       success: true,
       message: 'Paid ticket saved successfully',
       data: {
         reference,
         saved_to_paid_table: true,
-        paid_ticket_id: paidTicket?.id
+        paid_ticket_id: paidTicket?.id,
+        quantity: quantity
       }
     });
   } catch (error) {

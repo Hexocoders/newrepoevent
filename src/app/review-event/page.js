@@ -17,6 +17,9 @@ function ReviewEventContent() {
   const [isScheduleEnabled, setIsScheduleEnabled] = useState(false);
   const [albumImages, setAlbumImages] = useState([]);
   const [isPromotionEnabled, setIsPromotionEnabled] = useState(false);
+  const [ticketTiers, setTicketTiers] = useState([]);
+  const [standardTicket, setStandardTicket] = useState(null);
+  const [premiumTiers, setPremiumTiers] = useState([]);
 
   // Fetch event data on component mount
   useEffect(() => {
@@ -71,22 +74,32 @@ function ReviewEventContent() {
           }
         }
 
-        // Process ticket data if this is a paid event
-        if (eventData.is_paid && eventData.ticket_tiers && eventData.ticket_tiers.length > 0) {
-          // Get the first/standard ticket tier
-          const standardTicket = eventData.ticket_tiers[0];
+        // Process ticket data
+        if (eventData.ticket_tiers && eventData.ticket_tiers.length > 0) {
+          // Save all ticket tiers
+          setTicketTiers(eventData.ticket_tiers);
+          
+          // Separate standard and premium tiers based on tier_title existence
+          const standard = eventData.ticket_tiers.find(tier => !tier.tier_title);
+          const premium = eventData.ticket_tiers.filter(tier => tier.tier_title);
+          
+          setStandardTicket(standard || null);
+          setPremiumTiers(premium || []);
+          
+          // If it's a paid event, set the price and quantity from the standard tier for backward compatibility
+          if (eventData.is_paid && standard) {
           setEvent(prev => ({
             ...prev,
-            ticket_price: standardTicket.price,
-            ticket_quantity: standardTicket.quantity
+              ticket_price: standard.price,
+              ticket_quantity: standard.quantity
           }));
-        } else if (eventData.ticket_tiers && eventData.ticket_tiers.length > 0) {
+          } else if (!eventData.is_paid && standard) {
           // If it's a free event but has tickets
-          const freeTicket = eventData.ticket_tiers[0];
           setEvent(prev => ({
             ...prev,
-            ticket_quantity: freeTicket.quantity
+              ticket_quantity: standard.quantity
           }));
+          }
         }
       } catch (error) {
         console.error('Error fetching event:', error.message);
@@ -377,6 +390,45 @@ function ReviewEventContent() {
                     </div>
 
                     <div>
+                      <h3 className="text-sm font-medium text-slate-700">Event Type</h3>
+                      <p className="text-sm text-slate-600 mt-1">
+                        {event?.is_online ? (
+                          <span className="flex items-center">
+                            <svg className="h-4 w-4 mr-1 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                            Online Event
+                          </span>
+                        ) : (
+                          <span className="flex items-center">
+                            <svg className="h-4 w-4 mr-1 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            Physical Event
+                          </span>
+                        )}
+                      </p>
+                    </div>
+
+                    {event?.is_online && event?.event_link && (
+                      <div>
+                        <h3 className="text-sm font-medium text-slate-700">Event Link</h3>
+                        <a 
+                          href={event.event_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-indigo-600 hover:text-indigo-700 mt-1 inline-flex items-center"
+                        >
+                          {event.event_link}
+                          <svg className="h-4 w-4 ml-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
+                        </a>
+                      </div>
+                    )}
+
+                    <div>
                       <h3 className="text-sm font-medium text-slate-700">Promotion</h3>
                       <p className={`text-sm mt-1 ${event?.is_promotion_enabled ? 'text-green-600 font-medium' : 'text-slate-600'}`}>
                         {event?.is_promotion_enabled ? 'Enabled' : 'Disabled'}
@@ -417,24 +469,140 @@ function ReviewEventContent() {
                     </div>
                   </div>
                   
-                  {event?.is_paid && (
+                  {/* Standard ticket display */}
+                  {event?.is_paid && standardTicket && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                       <div>
-                        <h3 className="text-sm font-medium text-slate-700">Price</h3>
-                        <p className="text-sm text-slate-600 mt-1">₦{event?.ticket_price || '0'}</p>
+                        <h3 className="text-sm font-medium text-slate-700">Standard Ticket Price</h3>
+                        <p className="text-sm text-slate-600 mt-1">₦{standardTicket?.price || '0'}</p>
                       </div>
                       
                       <div>
-                        <h3 className="text-sm font-medium text-slate-700">Quantity</h3>
-                        <p className="text-sm text-slate-600 mt-1">{event?.ticket_quantity || '0'} tickets</p>
+                        <h3 className="text-sm font-medium text-slate-700">Standard Ticket Quantity</h3>
+                        <p className="text-sm text-slate-600 mt-1">{standardTicket?.quantity || '0'} tickets</p>
                       </div>
                     </div>
                   )}
                   
-                  {!event?.is_paid && event?.ticket_quantity && (
+                  {/* Premium Ticket tiers display */}
+                  {event?.is_paid && premiumTiers.length > 0 && (
+                    <div className="mt-6">
+                      <h3 className="text-sm font-medium text-slate-700 mb-3">Premium Ticket Tiers</h3>
+                      <div className="space-y-4">
+                        {premiumTiers.map((tier, index) => (
+                          <div key={index} className="bg-slate-50 p-4 rounded-lg">
+                            <div className="flex justify-between items-center mb-2">
+                              <h4 className="text-sm font-semibold text-slate-700">{tier.tier_title || `Premium Tier ${index + 1}`}</h4>
+                              <span className="text-sm font-medium text-indigo-600">₦{tier.tier_price || '0'}</span>
+                            </div>
+                            
+                            <p className="text-xs text-slate-600 mb-2">
+                              {tier.tier_description || 'No description provided'}
+                            </p>
+                            
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="text-slate-500">Available tickets:</span>
+                              <span className="font-medium text-slate-700">{tier.tier_quantity || '0'}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Free tickets display */}
+                  {!event?.is_paid && standardTicket && (
                     <div>
                       <h3 className="text-sm font-medium text-slate-700">Free Tickets Available</h3>
-                      <p className="text-sm text-slate-600 mt-1">{event?.ticket_quantity || '0'} tickets</p>
+                      <p className="text-sm text-slate-600 mt-1">{standardTicket?.quantity || '0'} tickets</p>
+                    </div>
+                  )}
+
+                  {/* Discount Information */}
+                  {event?.is_paid && (
+                    <div className="mt-6 border-t border-slate-200 pt-6">
+                      <h3 className="text-sm font-semibold text-slate-700 mb-4">Discounts</h3>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Early Bird Discount */}
+                        <div className="bg-slate-50 p-4 rounded-lg">
+                          <div className="flex items-center mb-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <h4 className="text-sm font-medium text-slate-700">Early Bird Discount</h4>
+                          </div>
+                          
+                          {event?.has_early_bird ? (
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-slate-500">Status:</span>
+                                <span className="text-xs font-medium text-green-600">Enabled</span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-slate-500">Discount:</span>
+                                <span className="text-xs font-medium text-slate-700">{event.early_bird_discount}% off</span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-slate-500">Valid from:</span>
+                                <span className="text-xs font-medium text-slate-700">
+                                  {event.early_bird_start_date ? new Date(event.early_bird_start_date).toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric'
+                                  }) : 'Not set'}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-slate-500">Valid until:</span>
+                                <span className="text-xs font-medium text-slate-700">
+                                  {event.early_bird_end_date ? new Date(event.early_bird_end_date).toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric'
+                                  }) : 'Not set'}
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-slate-500">This discount is not enabled for this event.</p>
+                          )}
+                        </div>
+                        
+                        {/* Multiple Buys Discount */}
+                        <div className="bg-slate-50 p-4 rounded-lg">
+                          <div className="flex items-center mb-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                            </svg>
+                            <h4 className="text-sm font-medium text-slate-700">Multiple Tickets Discount</h4>
+                          </div>
+                          
+                          {event?.has_multiple_buys ? (
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-slate-500">Status:</span>
+                                <span className="text-xs font-medium text-green-600">Enabled</span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-slate-500">Discount:</span>
+                                <span className="text-xs font-medium text-slate-700">{event.multiple_buys_discount}% off</span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-slate-500">Minimum tickets:</span>
+                                <span className="text-xs font-medium text-slate-700">{event.multiple_buys_min_tickets || 2} tickets</span>
+                              </div>
+                              <div>
+                                <p className="text-xs text-slate-500 mt-2">
+                                  Buyers will receive a {event.multiple_buys_discount}% discount when purchasing {event.multiple_buys_min_tickets || 2} or more tickets.
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-slate-500">This discount is not enabled for this event.</p>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>

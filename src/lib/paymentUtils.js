@@ -142,19 +142,24 @@ export async function processRefund(transactionId, amount = null, reason = 'Even
  * Calculate platform fee for a given amount
  * @param {number} amount - The ticket or sale amount
  * @param {number} feePercentage - The fee percentage (default: 3%)
+ * @param {number} quantity - The quantity of items (default: 1)
  * @returns {Object} - The calculated fee and customer amount
  */
-export function calculatePlatformFee(amount, feePercentage = 3) {
+export function calculatePlatformFee(amount, feePercentage = 3, quantity = 1) {
   const numericAmount = parseFloat(amount);
   if (isNaN(numericAmount)) {
     throw new Error('Invalid amount');
   }
   
+  // Calculate fee based on single item price
   const fee = (numericAmount * feePercentage) / 100;
-  const amountWithFee = numericAmount + fee;
+  // Total amount is quantity * amount + single fee
+  const totalBaseAmount = numericAmount * quantity;
+  const amountWithFee = totalBaseAmount + fee;
   
   return {
     originalAmount: numericAmount,
+    totalBaseAmount,
     feePercentage,
     feeAmount: fee,
     amountWithFee,
@@ -178,24 +183,77 @@ export async function initiatePaystackRefund(paymentReference, amount, reason = 
       throw new Error('Paystack secret key is not configured');
     }
     
-    // Real Paystack API call to initiate refund
-    const response = await fetch('https://api.paystack.co/refund', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        transaction: paymentReference,
-        amount: amount ? Math.round(amount * 100) : undefined, // Convert to kobo if provided
-        merchant_note: reason,
-      }),
-    });
+    console.log(`Initiating refund for transaction ${paymentReference}, amount: ${amount || 'full amount'}`);
     
-    const responseData = await response.json();
+    // Add retry logic for transient errors
+    const MAX_RETRIES = 2;
+    let retries = 0;
+    let responseData;
+    let response;
+    
+    while (retries <= MAX_RETRIES) {
+      try {
+        // Real Paystack API call to initiate refund
+        response = await fetch('https://api.paystack.co/refund', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            transaction: paymentReference,
+            amount: amount ? Math.round(amount * 100) : undefined, // Convert to kobo if provided
+            merchant_note: reason,
+            // Include full reason in metadata for better tracking
+            metadata: {
+              full_reason: reason,
+              is_batch_refund: reason.includes('multiple') || reason.includes('ticket(s)'),
+              is_partial_refund: amount ? true : false
+            }
+          }),
+        });
+        
+        responseData = await response.json();
+        break; // Success, exit retry loop
+      } catch (e) {
+        retries++;
+        if (retries > MAX_RETRIES) throw e;
+        // Exponential backoff
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+      }
+    }
     
     if (!response.ok) {
       console.error('Paystack refund failed:', responseData);
+      
+      // For specific known errors, provide better error messages
+      if (responseData.message) {
+        if (responseData.message.includes('already in progress')) {
+          return {
+            success: false,
+            error: 'A refund for this transaction is already in progress - no need to retry',
+            paystackResponse: responseData
+          };
+        }
+        
+        if (responseData.message.includes('not found') || responseData.message.includes('could not find')) {
+          return {
+            success: false,
+            error: 'Transaction not found in Paystack. May be a test transaction or too old to refund.',
+            paystackResponse: responseData
+          };
+        }
+        
+        if (responseData.message.includes('fully reversed')) {
+          return {
+            success: true, // Treat as success since it's already refunded
+            error: 'Transaction has already been fully reversed',
+            paystackResponse: responseData
+          };
+        }
+      }
+      
+      // Generic error
       return {
         success: false,
         error: responseData.message || 'Failed to process refund',

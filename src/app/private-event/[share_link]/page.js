@@ -107,7 +107,7 @@ export default function SharedPrivateEventPage() {
     
     // Calculate the amount with 3% fee
     const baseAmount = event.price * purchaseQuantity;
-    const amountWithFee = baseAmount * 1.03; // Add 3% platform fee
+    const amountWithFee = baseAmount + (event.price * 0.03); // Add 3% platform fee once per order
     const payableAmount = Math.round(amountWithFee * 100); // Convert to kobo and round
     
     // Add PayStack script dynamically if it doesn't exist
@@ -592,11 +592,11 @@ export default function SharedPrivateEventPage() {
                         </div>
                         <div className="flex justify-between items-center mt-2">
                           <span className="font-medium text-slate-700">Charges</span>
-                          <span className="font-medium text-slate-600">₦{(event.price * purchaseQuantity * 0.03).toFixed(2)}</span>
+                          <span className="font-medium text-slate-600">₦{(event.price * 0.03).toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between items-center mt-3 pt-2 border-t border-slate-100">
                           <span className="font-medium text-slate-700">Total</span>
-                          <span className="font-bold text-xl text-indigo-600">₦{(event.price * purchaseQuantity * 1.03).toFixed(2)}</span>
+                          <span className="font-bold text-xl text-indigo-600">₦{(event.price * purchaseQuantity + event.price * 0.03).toFixed(2)}</span>
                         </div>
                       </div>
                     )}
@@ -604,7 +604,7 @@ export default function SharedPrivateEventPage() {
                     {/* Footnote about fees */}
                     {event.is_paid && ticketsAvailable > 0 && (
                       <div className="mt-2 text-xs text-slate-500 italic">
-                        * 3% charges are added at checkout. Only the original ticket price will be recorded for the event.
+                        * 3% service charge is added once per order. Only the original ticket price will be recorded for the event.
                       </div>
                     )}
                     
@@ -681,7 +681,7 @@ export default function SharedPrivateEventPage() {
                                   </svg>
                                   Processing...
                                 </span>
-                              ) : `Pay ₦${(event.price * purchaseQuantity * 1.03).toFixed(2)} (Incl. 3% fee)*`}
+                              ) : `Pay ₦${(event.price * purchaseQuantity + event.price * 0.03).toFixed(2)} (Incl. 3% fee)*`}
                             </button>
                           </div>
                         </div>

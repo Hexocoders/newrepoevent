@@ -17,6 +17,7 @@ function AddPaymentContent() {
   const [success, setSuccess] = useState(false);
   const [userData, setUserData] = useState(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [accountCurrencyType, setAccountCurrencyType] = useState('dollar');
   const [formData, setFormData] = useState({
     accountName: '',
     accountNumber: '',
@@ -43,6 +44,17 @@ function AddPaymentContent() {
     }, 1000);
   }, []);
 
+  // Update accountType options when currency type changes
+  useEffect(() => {
+    if (accountCurrencyType === 'non-dollar' && 
+        (formData.accountType === 'checking' || formData.accountType === 'savings')) {
+      setFormData(prev => ({
+        ...prev,
+        accountType: 'savings'
+      }));
+    }
+  }, [accountCurrencyType]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -56,19 +68,20 @@ function AddPaymentContent() {
         throw new Error('User ID not found. Please log in again.');
       }
 
+      // Prepare data based on account currency type
+      const paymentData = {
+        user_id: userId,
+        account_name: formData.accountName,
+        account_number: formData.accountNumber,
+        bank_name: formData.bankName,
+        account_type: formData.accountType,
+        is_default: formData.isDefault,
+        routing_number: accountCurrencyType === 'dollar' ? formData.routingNumber : ''
+      };
+
       const { data, error } = await supabase
         .from('payment_methods')
-        .insert([
-          {
-            user_id: userId,
-            account_name: formData.accountName,
-            account_number: formData.accountNumber,
-            bank_name: formData.bankName,
-            routing_number: formData.routingNumber,
-            account_type: formData.accountType,
-            is_default: formData.isDefault
-          }
-        ])
+        .insert([paymentData])
         .select();
 
       if (error) throw error;
@@ -177,6 +190,43 @@ function AddPaymentContent() {
                 </div>
               )}
 
+              {/* Account Currency Type Selection */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Account Currency Type
+                </label>
+                <div className="flex space-x-6 bg-slate-50 p-4 rounded-lg">
+                  <div className="flex items-center">
+                    <input
+                      type="radio"
+                      id="dollar"
+                      name="accountCurrencyType"
+                      value="dollar"
+                      checked={accountCurrencyType === 'dollar'}
+                      onChange={(e) => setAccountCurrencyType(e.target.value)}
+                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-slate-300 rounded"
+                    />
+                    <label htmlFor="dollar" className="ml-2 block text-sm text-slate-700">
+                      Dollar Account
+                    </label>
+                  </div>
+                  <div className="flex items-center">
+                    <input
+                      type="radio"
+                      id="non-dollar"
+                      name="accountCurrencyType"
+                      value="non-dollar"
+                      checked={accountCurrencyType === 'non-dollar'}
+                      onChange={(e) => setAccountCurrencyType(e.target.value)}
+                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-slate-300 rounded"
+                    />
+                    <label htmlFor="non-dollar" className="ml-2 block text-sm text-slate-700">
+                      Non-Dollar Account
+                    </label>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Account Holder Name
@@ -219,19 +269,22 @@ function AddPaymentContent() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Routing Number
-                </label>
-                <input
-                  type="text"
-                  name="routingNumber"
-                  value={formData.routingNumber}
-                  onChange={handleChange}
-                  required
-                  className="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md text-black focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-                />
-              </div>
+              {/* Only show routing number for dollar accounts */}
+              {accountCurrencyType === 'dollar' && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Routing Number
+                  </label>
+                  <input
+                    type="text"
+                    name="routingNumber"
+                    value={formData.routingNumber}
+                    onChange={handleChange}
+                    required={accountCurrencyType === 'dollar'}
+                    className="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md text-black focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -244,8 +297,18 @@ function AddPaymentContent() {
                   required
                   className="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md text-black focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
                 >
-                  <option value="checking">Checking</option>
-                  <option value="savings">Savings</option>
+                  {/* Different account type options based on currency type */}
+                  {accountCurrencyType === 'dollar' ? (
+                    <>
+                      <option value="checking">Checking</option>
+                      <option value="savings">Savings</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="savings">Savings</option>
+                      <option value="current">Current</option>
+                    </>
+                  )}
                 </select>
               </div>
 

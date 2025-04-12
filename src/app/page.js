@@ -42,6 +42,13 @@ export default function Home() {
           start_time,
           city,
           state,
+          has_early_bird,
+          early_bird_discount,
+          early_bird_start_date,
+          early_bird_end_date,
+          has_multiple_buys,
+          multiple_buys_discount,
+          multiple_buys_min_tickets,
           event_images (
             image_url,
             is_cover
@@ -114,6 +121,10 @@ export default function Home() {
           }
         }
         
+        // Check if discounts are available
+        const hasDiscounts = event.has_early_bird || event.has_multiple_buys;
+        const discountAmount = Math.max(event.early_bird_discount || 0, event.multiple_buys_discount || 0);
+        
         return {
           id: event.id,
           title: event.name || 'Untitled Event',
@@ -128,7 +139,18 @@ export default function Home() {
           location: `${event.city || ''}${event.state ? `, ${event.state}` : ''}`,
           price: lowestPrice === 0 ? 'Free' : `₦${lowestPrice.toLocaleString()}`,
           ticketCount: isSoldOut ? 'No available ticket for this event' : totalTickets,
-          description: event.description
+          description: event.description,
+          // Discount info
+          has_early_bird: event.has_early_bird || false,
+          early_bird_discount: event.early_bird_discount || 0,
+          early_bird_start_date: event.early_bird_start_date,
+          early_bird_end_date: event.early_bird_end_date,
+          has_multiple_buys: event.has_multiple_buys || false,
+          multiple_buys_discount: event.multiple_buys_discount || 0,
+          multiple_buys_min_tickets: event.multiple_buys_min_tickets || 2,
+          // Display indicators
+          hasDiscounts: hasDiscounts,
+          discountAmount: discountAmount
         };
       });
 
@@ -175,8 +197,35 @@ export default function Home() {
       e.stopPropagation(); // Stop event bubbling
     }
     
+    console.log('Get Tickets clicked for event:', event.title);
+    
+    // Format the event data specifically for the TicketModal component
+    const formattedEvent = {
+      ...event,
+      // Ensure these fields are properly formatted for the TicketModal
+      early_bird_start_date: event.early_bird_start_date ? new Date(event.early_bird_start_date).toISOString() : null,
+      early_bird_end_date: event.early_bird_end_date ? new Date(event.early_bird_end_date).toISOString() : null,
+      // Make sure ticket_tiers are properly formatted
+      ticket_tiers: Array.isArray(event.ticket_tiers) ? event.ticket_tiers.map(tier => ({
+        ...tier,
+        // Ensure numeric values are properly parsed
+        price: typeof tier.price === 'string' ? parseFloat(tier.price.replace(/[^\d.]/g, '')) : parseFloat(tier.price) || 0,
+        quantity: parseInt(tier.quantity) || 0,
+        paid_quantity_sold: parseInt(tier.paid_quantity_sold) || 0,
+        quantity_sold: parseInt(tier.quantity_sold) || 0,
+        // Ensure ID is present and valid
+        id: tier.id || 'default',
+        // Set availableQuantity for the TicketModal
+        availableQuantity: tier.quantity - (tier.paid_quantity_sold || 0),
+        // Set premium flag (optional for styling)
+        isPremium: false,
+        // Set soldOut flag
+        soldOut: (tier.quantity - (tier.paid_quantity_sold || 0)) <= 0
+      })) : []
+    };
+    
     // Set the selected event and show the ticket modal
-    setSelectedEvent(event);
+    setSelectedEvent(formattedEvent);
     closeModal(); // Close the preview modal if it's open
     setShowTicketModal(true);
   };
@@ -650,7 +699,7 @@ export default function Home() {
 }
 
 // Featured Event Card Component
-function FeaturedEventCard({ id, title, image, date, location, price, category = "Featured", attendees = "100+ attending", ticketCount, onClick, onGetTickets }) {
+function FeaturedEventCard({ id, title, image, date, location, price, category = "Featured", attendees = "100+ attending", ticketCount, hasDiscounts, discountAmount, onClick, onGetTickets }) {
   const isSoldOut = ticketCount === 'No available ticket for this event';
   
   return (
@@ -668,6 +717,15 @@ function FeaturedEventCard({ id, title, image, date, location, price, category =
             {category}
           </div>
         </div>
+        
+        {/* Discount Badge - Show only if there are discounts */}
+        {hasDiscounts && (
+          <div className="absolute top-4 right-4">
+            <span className="inline-block px-3 py-1 text-xs font-semibold bg-orange-500 text-white rounded-full shadow-sm">
+              Up to {discountAmount}% off
+            </span>
+          </div>
+        )}
       </div>
       <div className="p-6">
         <div className="flex items-center text-gray-500 text-sm mb-2">
@@ -726,7 +784,7 @@ function FeaturedEventCard({ id, title, image, date, location, price, category =
 }
 
 // Trending Event Card Component
-function TrendingEventCard({ id, title, image, date, location, price, category = "Trending", rating = 4.5, reviews = 27, ticketCount, onClick, onGetTickets }) {
+function TrendingEventCard({ id, title, image, date, location, price, category = "Trending", rating = 4.5, reviews = 27, ticketCount, hasDiscounts, discountAmount, onClick, onGetTickets }) {
   const isSoldOut = ticketCount === 'No available ticket for this event';
   
   return (
@@ -744,6 +802,15 @@ function TrendingEventCard({ id, title, image, date, location, price, category =
             {category}
           </div>
         </div>
+        
+        {/* Discount Badge - Show only if there are discounts */}
+        {hasDiscounts && (
+          <div className="absolute top-4 right-4">
+            <span className="inline-block px-3 py-1 text-xs font-semibold bg-orange-500 text-white rounded-full shadow-sm">
+              Up to {discountAmount}% off
+            </span>
+          </div>
+        )}
       </div>
       <div className="p-6 md:w-3/5 flex flex-col justify-between">
         <div>
@@ -808,7 +875,7 @@ function TrendingEventCard({ id, title, image, date, location, price, category =
 }
 
 // Event Card Component
-function EventCard({ id, title, image, date, location, price, ticketCount, onClick, onGetTickets }) {
+function EventCard({ id, title, image, date, location, price, ticketCount, hasDiscounts, discountAmount, onClick, onGetTickets }) {
   const isSoldOut = ticketCount === 'No available ticket for this event';
   
   return (
@@ -821,6 +888,15 @@ function EventCard({ id, title, image, date, location, price, ticketCount, onCli
           className="object-cover"
         />
         <div className="absolute inset-0 bg-black/40"></div>
+        
+        {/* Discount Badge - Show only if there are discounts */}
+        {hasDiscounts && (
+          <div className="absolute top-3 right-3">
+            <span className="inline-block px-3 py-1 text-xs font-semibold bg-orange-500 text-white rounded-full shadow-sm">
+              Up to {discountAmount}% off
+            </span>
+          </div>
+        )}
       </div>
       <div className="p-4">
         <h3 className="text-base font-semibold text-gray-900 mb-2 line-clamp-2">{title}</h3>
@@ -851,7 +927,12 @@ function EventCard({ id, title, image, date, location, price, ticketCount, onCli
             )}
           </div>
           <button 
-            onClick={onGetTickets}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              // Make sure we pass the event object
+              onGetTickets(e);
+            }}
             disabled={isSoldOut}
             className={`w-8 h-8 flex items-center justify-center transition-colors ${
               isSoldOut 

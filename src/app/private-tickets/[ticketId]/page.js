@@ -100,7 +100,8 @@ export default function PrivateTicketPage() {
       customerEmail: ticket.customer_email,
       quantity: ticket.quantity,
       isPaid: ticket.is_paid,
-      status: ticket.status
+      status: ticket.status,
+      ticketType: ticket.ticket_type || 'Standard Ticket'
     });
   };
 

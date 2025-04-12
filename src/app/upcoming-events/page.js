@@ -19,10 +19,19 @@ export default function UpcomingEvents() {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [showTicketModal, setShowTicketModal] = useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(8);
 
   useEffect(() => {
     fetchEvents();
   }, []);
+
+  // Reset to first page when filters or search change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter, searchQuery]);
 
   const fetchEvents = async () => {
     try {
@@ -40,6 +49,13 @@ export default function UpcomingEvents() {
           state,
           category,
           created_at,
+          has_early_bird,
+          early_bird_discount,
+          early_bird_start_date,
+          early_bird_end_date,
+          has_multiple_buys,
+          multiple_buys_discount,
+          multiple_buys_min_tickets,
           event_images (
             image_url,
             is_cover
@@ -148,7 +164,14 @@ export default function UpcomingEvents() {
           featured: isFeatured,
           ticketCount: ticketCount,
           isSoldOut: isSoldOut,
-          ticket_tiers: event.ticket_tiers
+          ticket_tiers: event.ticket_tiers,
+          has_early_bird: event.has_early_bird || false,
+          early_bird_discount: event.early_bird_discount || 0,
+          early_bird_start_date: event.early_bird_start_date,
+          early_bird_end_date: event.early_bird_end_date,
+          has_multiple_buys: event.has_multiple_buys || false,
+          multiple_buys_discount: event.multiple_buys_discount || 0,
+          multiple_buys_min_tickets: event.multiple_buys_min_tickets || 2
         };
       });
 
@@ -170,6 +193,21 @@ export default function UpcomingEvents() {
                           (event.description && event.description.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesFilter && matchesSearch;
   });
+
+  // Get current page events
+  const indexOfLastEvent = currentPage * itemsPerPage;
+  const indexOfFirstEvent = indexOfLastEvent - itemsPerPage;
+  const currentEvents = filteredEvents.slice(indexOfFirstEvent, indexOfLastEvent);
+  
+  // Calculate total pages
+  const totalPages = Math.ceil(filteredEvents.length / itemsPerPage);
+  
+  // Handle page navigation
+  const goToPage = (pageNumber) => {
+    setCurrentPage(Math.max(1, Math.min(pageNumber, totalPages)));
+    // Scroll to top when changing pages
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // Animation variants
   const containerVariants = {
@@ -203,12 +241,7 @@ export default function UpcomingEvents() {
   };
 
   // Handle "Get Tickets" button click
-  const handleGetTickets = (event, e) => {
-    if (e) {
-      e.preventDefault(); // Prevent default link behavior
-      e.stopPropagation(); // Stop event bubbling
-    }
-    
+  const handleGetTickets = (event) => {
     // Set the selected event and show the ticket modal
     setSelectedEvent(event);
     closeModal(); // Close the preview modal if it's open
@@ -338,6 +371,26 @@ export default function UpcomingEvents() {
                 {filter !== 'all' && ` for ${getTimeFrameLabel(filter).toLowerCase()}`}
                 {searchQuery && ` matching "${searchQuery}"`}
               </p>
+              
+              {/* Page Size Selector */}
+              {filteredEvents.length > 8 && (
+                <div className="mt-2 flex justify-center items-center space-x-2">
+                  <span className="text-sm text-gray-600">Events per page:</span>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => {
+                      setItemsPerPage(Number(e.target.value));
+                      setCurrentPage(1); // Reset to first page when changing page size
+                    }}
+                    className="text-sm border border-gray-300 rounded-md p-1 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  >
+                    <option value={8}>8</option>
+                    <option value={12}>12</option>
+                    <option value={16}>16</option>
+                    <option value={24}>24</option>
+                  </select>
+                </div>
+              )}
             </div>
             
             {/* Events Grid */}
@@ -348,12 +401,12 @@ export default function UpcomingEvents() {
                 animate="visible"
                 className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8"
               >
-                {filteredEvents.map((event) => (
+                {currentEvents.map((event) => (
                   <motion.div key={event.id} variants={itemVariants}>
                     <EventCard 
                       event={event} 
                       onClick={() => handleEventClick(event)}
-                      onGetTickets={(e) => handleGetTickets(event, e)}
+                      onGetTickets={handleGetTickets}
                     />
                   </motion.div>
                 ))}
@@ -378,6 +431,115 @@ export default function UpcomingEvents() {
                 >
                   Show All Events
                 </button>
+              </div>
+            )}
+            
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="mt-10 flex justify-center">
+                <nav className="flex items-center space-x-1 md:space-x-2">
+                  {/* First Page Button - Only show if not on first page and many pages exist */}
+                  {totalPages > 5 && currentPage > 3 && (
+                    <button
+                      onClick={() => goToPage(1)}
+                      className="px-3 py-2 rounded-md text-gray-700 hover:bg-amber-100"
+                      aria-label="First Page"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M15.707 15.707a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414l5-5a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 010 1.414zm-6 0a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414l5-5a1 1 0 011.414 1.414L5.414 10l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  )}
+                
+                  {/* Previous Page Button */}
+                  <button
+                    onClick={() => goToPage(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className={`px-3 py-2 rounded-md ${
+                      currentPage === 1
+                        ? 'text-gray-400 cursor-not-allowed'
+                        : 'text-gray-700 hover:bg-amber-100'
+                    }`}
+                    aria-label="Previous Page"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                  
+                  {/* Page Numbers */}
+                  <div className="flex space-x-1">
+                    {Array.from({ length: Math.min(5, totalPages) }).map((_, idx) => {
+                      // Calculate which page numbers to show
+                      let pageNumber;
+                      if (totalPages <= 5) {
+                        // If we have 5 or fewer pages, show all of them
+                        pageNumber = idx + 1;
+                      } else if (currentPage <= 3) {
+                        // If we're near the start, show pages 1-5
+                        pageNumber = idx + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        // If we're near the end, show the last 5 pages
+                        pageNumber = totalPages - 4 + idx;
+                      } else {
+                        // Otherwise show 2 pages before and after current page
+                        pageNumber = currentPage - 2 + idx;
+                      }
+                      
+                      return (
+                        <button
+                          key={pageNumber}
+                          onClick={() => goToPage(pageNumber)}
+                          aria-label={`Page ${pageNumber}`}
+                          aria-current={currentPage === pageNumber ? 'page' : undefined}
+                          className={`w-8 h-8 md:w-10 md:h-10 rounded-lg ${
+                            currentPage === pageNumber
+                              ? 'bg-amber-500 text-white font-medium'
+                              : 'text-gray-700 hover:bg-amber-100'
+                          }`}
+                        >
+                          {pageNumber}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  
+                  {/* Next Page Button */}
+                  <button
+                    onClick={() => goToPage(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className={`px-3 py-2 rounded-md ${
+                      currentPage === totalPages
+                        ? 'text-gray-400 cursor-not-allowed'
+                        : 'text-gray-700 hover:bg-amber-100'
+                    }`}
+                    aria-label="Next Page"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                  
+                  {/* Last Page Button - Only show if not on last page and many pages exist */}
+                  {totalPages > 5 && currentPage < totalPages - 2 && (
+                    <button
+                      onClick={() => goToPage(totalPages)}
+                      className="px-3 py-2 rounded-md text-gray-700 hover:bg-amber-100"
+                      aria-label="Last Page"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10.293 15.707a1 1 0 010-1.414L14.586 10l-4.293-4.293a1 1 0 111.414-1.414l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0zm-8 0a1 1 0 010-1.414L6.586 10 2.293 5.707a1 1 0 011.414-1.414l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  )}
+                </nav>
+              </div>
+            )}
+            
+            {/* Results Summary */}
+            {filteredEvents.length > 0 && (
+              <div className="mt-4 text-center text-sm text-gray-500">
+                Showing {indexOfFirstEvent + 1}-{Math.min(indexOfLastEvent, filteredEvents.length)} of {filteredEvents.length} events
               </div>
             )}
           </>
@@ -520,7 +682,7 @@ export default function UpcomingEvents() {
                     My Tickets
                   </Link>
                   <button 
-                    onClick={(e) => handleGetTickets(selectedEvent, e)}
+                    onClick={() => handleGetTickets(selectedEvent)}
                     disabled={selectedEvent.ticketCount === 'No available ticket for this event'}
                     className={`px-6 py-3 rounded-lg font-medium transition-all ${
                       selectedEvent.ticketCount === 'No available ticket for this event'
@@ -567,106 +729,101 @@ function FilterButton({ children, active, onClick }) {
 
 // Event Card Component
 function EventCard({ event, onClick, onGetTickets }) {
-  const isSoldOut = event.ticketCount === 'No available ticket for this event';
+  // Check if discounts are available
+  const hasDiscounts = event.has_early_bird || event.has_multiple_buys;
+  const discountAmount = Math.max(event.early_bird_discount || 0, event.multiple_buys_discount || 0);
   
   return (
-    <div 
-      className="bg-white rounded-xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 group h-full flex flex-col cursor-pointer border border-gray-100"
-      onClick={() => onClick(event)}
-    >
-      <div className="relative h-52 md:h-64 overflow-hidden">
-        <Image
-          src={event.image}
+    <div className="relative flex flex-col overflow-hidden bg-white rounded-2xl shadow-sm hover:shadow-lg transition-shadow border border-slate-200">
+      {/* Event Image */}
+      <div 
+        className="relative aspect-[16/9] cursor-pointer"
+        onClick={onClick}
+      >
+        <Image 
+          src={event.image} 
           alt={event.title}
           fill
-          className="object-cover transition-transform duration-500 group-hover:scale-110"
+          sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
+          className="object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-40 group-hover:opacity-60 transition-opacity"></div>
-        
-        {/* Category badge */}
-        <div className="absolute top-4 left-4 z-10">
-          <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-white/90 backdrop-blur-sm text-xs font-medium text-gray-800 shadow-sm group-hover:bg-white transition-all">
+        {/* Category Tag */}
+        <div className="absolute top-3 left-3">
+          <span className="inline-block px-3 py-1 text-xs font-semibold bg-indigo-600 text-white rounded-full shadow-sm">
             {event.category}
           </span>
         </div>
         
-        {/* Featured badge */}
-        {event.featured && (
-          <div className="absolute top-4 right-4 z-10">
-            <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-amber-500 text-white text-xs font-medium shadow-md">
-              <svg className="w-3 h-3 mr-1 fill-current" viewBox="0 0 24 24">
-                <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
-              </svg>
-              Featured
+        {/* Discount Badge - Show only if there are discounts */}
+        {hasDiscounts && (
+          <div className="absolute top-3 right-3">
+            <span className="inline-block px-3 py-1 text-xs font-semibold bg-orange-500 text-white rounded-full shadow-sm animate-pulse">
+              Up to {discountAmount}% off
             </span>
           </div>
         )}
+      </div>
+      
+      {/* Event Content */}
+      <div className="p-4 flex-grow cursor-pointer" onClick={onClick}>
+        <h3 className="text-lg font-semibold text-slate-900 mb-1 line-clamp-1">{event.title}</h3>
         
-        {/* Time badge */}
-        <div className="absolute bottom-4 left-4 z-10">
-          <div className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium shadow-sm ${getTimeFrameBackgroundColor(event.timeFrame)}`}>
-            <span className={`inline-block w-2 h-2 rounded-full mr-2 ${getTimeFrameDotColor(event.timeFrame)}`}></span>
-            {getTimeFrameLabel(event.timeFrame)}
+        <div className="mb-4">
+          <p className="text-sm text-slate-600 line-clamp-2">{event.description}</p>
+        </div>
+        
+        <div className="space-y-2 mb-4">
+          <div className="flex items-start space-x-2">
+            <svg className="w-4 h-4 text-slate-500 mt-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <span className="text-sm text-slate-600">{event.date}</span>
           </div>
+          
+          {event.time && (
+            <div className="flex items-start space-x-2">
+              <svg className="w-4 h-4 text-slate-500 mt-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="text-sm text-slate-600">{event.time}</span>
+            </div>
+          )}
+          
+          {event.location && (
+            <div className="flex items-start space-x-2">
+              <svg className="w-4 h-4 text-slate-500 mt-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span className="text-sm text-slate-600">{event.location}</span>
+            </div>
+          )}
         </div>
       </div>
       
-      <div className="p-5 flex-grow flex flex-col">
-        <h3 className="text-lg font-bold mb-3 text-gray-800 group-hover:text-amber-600 transition-colors line-clamp-2">{event.title}</h3>
-        
-        <div className="space-y-2 mb-4">
-          <div className="flex items-center text-gray-600">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            <p className="text-sm font-medium">{event.date}</p>
-          </div>
-          
-          <div className="flex items-center text-gray-600">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-            </svg>
-            <p className="text-sm font-medium line-clamp-1">{event.location || 'Location TBA'}</p>
-          </div>
+      {/* Event Footer */}
+      <div className="flex items-center justify-between border-t border-slate-200 p-4">
+        <div className="flex flex-col">
+          <span className={`text-sm ${event.isSoldOut ? 'text-red-600 font-medium' : 'text-slate-600'}`}>
+            {event.isSoldOut ? 'Sold Out' : `${event.ticketCount} tickets`}
+          </span>
+          <span className="text-lg font-semibold text-indigo-600">
+            {event.price}
+          </span>
         </div>
         
-        <div className="mt-auto pt-4 border-t border-gray-100 flex justify-between items-center">
-          <div>
-            <p className="text-xs text-gray-500 mb-1">Price</p>
-            <p className={`font-bold text-base ${event.price === 'Free' ? 'text-green-600' : event.price === 'Sold Out' ? 'text-red-500' : 'text-amber-600'}`}>
-              {event.price}
-            </p>
-            {event.price !== 'Free' && event.price !== 'Sold Out' && !isSoldOut && (
-              <p className="text-xs text-gray-500">{event.ticketCount} available</p>
-            )}
-            {event.price === 'Free' && !isSoldOut && (
-              <p className="text-xs text-gray-500">{event.ticketCount} free tickets</p>
-            )}
-          </div>
+        {!event.isSoldOut && (
           <button 
             onClick={(e) => {
-              e.stopPropagation(); // Prevent triggering the card's onClick
-              if (onGetTickets) {
-                onGetTickets(event, e);
-              } else {
-              onClick(event); 
-              }
+              e.preventDefault();
+              e.stopPropagation();
+              onGetTickets(event);
             }}
-            disabled={isSoldOut}
-            className={`inline-flex items-center justify-center px-4 py-2.5 rounded-lg text-sm transition-colors ${
-              isSoldOut 
-                ? 'bg-gray-200 text-gray-500 cursor-not-allowed' 
-                : 'bg-gradient-to-r from-amber-500 to-orange-400 text-white hover:from-amber-600 hover:to-orange-500 group-hover:shadow-md transform group-hover:translate-y-0 hover:translate-y-[-2px]'
-            }`}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-colors"
           >
-            {isSoldOut ? 'Sold Out' : 'Get Tickets'}
-            {!isSoldOut && (
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1.5 transform group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            )}
+            Get Tickets
           </button>
-        </div>
+        )}
       </div>
     </div>
   );

@@ -8,8 +8,11 @@ import { useRouter } from 'next/navigation';
 export default function TicketModal({ event, isOpen, onClose }) {
   const router = useRouter();
   const [step, setStep] = useState(1);
-  const [selectedTickets, setSelectedTickets] = useState(0);
+  const [selectedTickets, setSelectedTickets] = useState({});
   const [totalAmount, setTotalAmount] = useState(0);
+  const [discountedAmount, setDiscountedAmount] = useState(0);
+  const [discounts, setDiscounts] = useState({ earlyBird: 0, multipleBuys: 0 });
+  const [showDiscount, setShowDiscount] = useState(false);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -18,6 +21,43 @@ export default function TicketModal({ event, isOpen, onClose }) {
   });
   const [isFreeEvent, setIsFreeEvent] = useState(false);
   const [ticketTiers, setTicketTiers] = useState([]);
+  const [serviceFee, setServiceFee] = useState(0);
+  const [finalAmount, setFinalAmount] = useState(0);
+
+  // Helper function to format dates
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Not specified';
+    
+    console.log('Formatting date:', dateString, 'Type:', typeof dateString);
+    
+    try {
+      // Handle different date formats
+      let date;
+      if (typeof dateString === 'string') {
+        date = new Date(dateString);
+      } else if (dateString instanceof Date) {
+        date = dateString;
+      } else {
+        console.error('Unknown date format:', dateString);
+        return 'Invalid date';
+      }
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        console.error('Invalid date object created from:', dateString);
+        return 'Invalid date';
+      }
+      
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    } catch (e) {
+      console.error('Error formatting date:', e, dateString);
+      return 'Invalid date';
+    }
+  };
 
   // Generate ticket tiers based on the event
   useEffect(() => {
@@ -27,15 +67,44 @@ export default function TicketModal({ event, isOpen, onClose }) {
       
       if (event.ticket_tiers?.length > 0) {
         tiers = event.ticket_tiers.map(tier => {
-          // Convert price to number and ensure it's not NaN
-          const price = typeof tier.price === 'string' ? 
-            parseFloat(tier.price.replace(/[^\d.]/g, '')) : 
-            parseFloat(tier.price) || 0;
-          
-          return {
-            ...tier,
-            price: price // Ensure price is a number
-          };
+          // Check if this is a premium tier (has tier_title)
+          if (tier.tier_title) {
+            // Use tier-specific fields for premium tiers
+            // Calculate available tickets
+            const totalQuantity = parseInt(tier.tier_quantity) || 0;
+            const soldQuantity = parseInt(tier.paid_quantity_sold) || 0;
+            const availableQuantity = Math.max(0, totalQuantity - soldQuantity);
+            
+            return {
+              ...tier,
+              id: tier.id,
+              name: tier.tier_title,
+              description: tier.tier_description,
+              price: parseFloat(tier.tier_price) || 0,
+              quantity: totalQuantity,
+              availableQuantity: availableQuantity,
+              soldOut: availableQuantity <= 0,
+              isPremium: true
+            };
+          } else {
+            // For standard tickets, use original columns
+            // Calculate available tickets
+            const totalQuantity = parseInt(tier.quantity) || 0;
+            const soldQuantity = parseInt(tier.paid_quantity_sold) || 0;
+            const availableQuantity = Math.max(0, totalQuantity - soldQuantity);
+            
+            const price = typeof tier.price === 'string' ? 
+              parseFloat(tier.price.replace(/[^\d.]/g, '')) : 
+              parseFloat(tier.price) || 0;
+            
+            return {
+              ...tier,
+              price: price,
+              availableQuantity: availableQuantity,
+              soldOut: availableQuantity <= 0,
+              isPremium: false
+            };
+          }
         });
       } else {
         // Extract price from event.price if it's a string with currency symbol
@@ -48,8 +117,12 @@ export default function TicketModal({ event, isOpen, onClose }) {
         
         tiers = [{ 
           id: 'default', 
-          name: 'General Admission', 
-          price: price
+          name: 'Standard Ticket', 
+          price: price,
+          quantity: event.quantity || 0,
+          availableQuantity: event.quantity || 0,
+          soldOut: false,
+          isPremium: false
         }];
       }
       
@@ -65,14 +138,25 @@ export default function TicketModal({ event, isOpen, onClose }) {
   useEffect(() => {
     if (isOpen && event) {
       setStep(1);
-      setSelectedTickets(0);
+      setSelectedTickets({});
       setTotalAmount(0);
+      setDiscountedAmount(0);
+      setDiscounts({ earlyBird: 0, multipleBuys: 0 });
+      setShowDiscount(false);
       setFormData({
         firstName: '',
         lastName: '',
         email: '',
         phone: ''
       });
+      
+      // Log early bird dates for debugging
+      if (event.has_early_bird) {
+        console.log('Early bird start date:', event.early_bird_start_date);
+        console.log('Early bird start date type:', typeof event.early_bird_start_date);
+        console.log('Early bird end date:', event.early_bird_end_date);
+        console.log('Early bird end date type:', typeof event.early_bird_end_date);
+      }
       
       // Store event details in localStorage for the ticket generation
       if (typeof window !== 'undefined') {
@@ -88,7 +172,14 @@ export default function TicketModal({ event, isOpen, onClose }) {
             time: event.time || 'Time not available',
             location: event.location || 'Location not available',
             id: event.id,
-            price: event.price
+            price: event.price,
+            has_early_bird: event.has_early_bird || false,
+            early_bird_discount: event.early_bird_discount || 0,
+            early_bird_start_date: event.early_bird_start_date || null,
+            early_bird_end_date: event.early_bird_end_date || null,
+            has_multiple_buys: event.has_multiple_buys || false,
+            multiple_buys_discount: event.multiple_buys_discount || 0,
+            multiple_buys_min_tickets: event.multiple_buys_min_tickets || 2
           };
           
           console.log('Storing event details in localStorage:', eventDetails);
@@ -102,29 +193,108 @@ export default function TicketModal({ event, isOpen, onClose }) {
 
   // Calculate total when selected tickets change
   useEffect(() => {
-    let total = 0;
-    if (event?.price && event.price !== 'Free') {
-      // Remove currency symbol and commas, then parse as float
-      const basePrice = parseFloat(event.price.replace(/[^\d.]/g, '')) || 0;
-      total = basePrice * selectedTickets;
-    }
-    setTotalAmount(total);
-    setIsFreeEvent(total === 0);
-  }, [selectedTickets, event]);
+    if (!event) return;
 
-  const handleClose = () => {
+    const totalTickets = Object.values(selectedTickets).reduce((total, count) => total + count, 0);
+    let subtotal = 0;
+    let serviceFee = 0;
+    
+    // Calculate subtotal based on selected ticket tiers
+    Object.entries(selectedTickets).forEach(([tierId, quantity]) => {
+      if (quantity > 0) {
+        const tier = ticketTiers.find(t => t.id === tierId);
+        if (tier) {
+          subtotal += tier.price * quantity;
+          
+          // Calculate service fee based on single ticket price (not quantity)
+          // Only apply the fee once if this tier is selected, regardless of quantity
+          serviceFee = Math.max(serviceFee, tier.price * 0.03); // Take the highest fee if multiple tiers
+        }
+      }
+    });
+    
+    // Apply discounts
+    let earlyBirdDiscount = 0;
+    let multipleBuysDiscount = 0;
+    
+    // Check for early bird discount
+    if (event.has_early_bird && event.early_bird_discount > 0) {
+      const today = new Date();
+      const startDate = event.early_bird_start_date ? new Date(event.early_bird_start_date) : null;
+      const endDate = event.early_bird_end_date ? new Date(event.early_bird_end_date) : null;
+      
+      if ((!startDate || today >= startDate) && (!endDate || today <= endDate)) {
+        earlyBirdDiscount = (subtotal * event.early_bird_discount) / 100;
+      }
+    }
+    
+    // Check for multiple buys discount
+    if (event.has_multiple_buys && event.multiple_buys_discount > 0) {
+      const minTickets = event.multiple_buys_min_tickets || 2;
+      if (totalTickets >= minTickets) {
+        multipleBuysDiscount = (subtotal * event.multiple_buys_discount) / 100;
+      }
+    }
+    
+    // Apply both discounts (don't stack, take the better one)
+    const totalDiscount = Math.max(earlyBirdDiscount, multipleBuysDiscount);
+    const discountedSubtotal = Math.max(0, subtotal - totalDiscount);
+    
+    // Final total is the discounted subtotal plus the flat service fee
+    const finalTotal = discountedSubtotal + serviceFee;
+    
+    // Save service fee for use in the UI
+    setServiceFee(serviceFee);
+    
+    // Log payment values for debugging
+    console.log(`[TicketModal] Payment calculation: ${subtotal} - ${totalDiscount} + ${serviceFee} = ${finalTotal}`);
+    
+    setTotalAmount(subtotal);
+    setDiscountedAmount(discountedSubtotal);
+    setDiscounts({
+      earlyBird: earlyBirdDiscount,
+      multipleBuys: multipleBuysDiscount
+    });
+    setShowDiscount(totalDiscount > 0);
+    setIsFreeEvent(discountedSubtotal === 0);
+    
+    // Store the final total with fee for payment purposes
+    setFinalAmount(finalTotal);
+    
+    // Save the selected quantity to localStorage for the payment process
+    localStorage.setItem('selectedTicketQuantity', totalTickets.toString());
+  }, [selectedTickets, event, ticketTiers]);
+
+  const handleClose = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     setStep(1);
-    setSelectedTickets(0);
+    setSelectedTickets({});
     onClose();
   };
 
-  const handleContinue = () => {
-    if (selectedTickets > 0) {
+  const handleContinue = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (getTotalTickets() > 0) {
+      // Save the selected quantity to localStorage for the payment process
+      const totalTickets = getTotalTickets();
+      localStorage.setItem('selectedTicketQuantity', totalTickets.toString());
+      console.log('Saved selected ticket quantity to localStorage:', totalTickets);
+      
       setStep(2);
     }
   };
 
-  const handleBack = () => {
+  const handleBack = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     setStep(1);
   };
 
@@ -135,6 +305,54 @@ export default function TicketModal({ event, isOpen, onClose }) {
     });
   };
 
+  const handleTicketChange = (tierId, newCount, event) => {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    
+    // Ensure newCount is not negative
+    const validCount = Math.max(0, newCount);
+    
+    setSelectedTickets(prev => ({
+      ...prev,
+      [tierId]: validCount
+    }));
+  };
+
+  const handleAddTicket = (tierId, event) => {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    
+    const tier = ticketTiers.find(t => t.id === tierId);
+    // Prevent adding tickets if sold out
+    if (tier && tier.soldOut) {
+      return;
+    }
+    
+    const currentCount = selectedTickets[tierId] || 0;
+    const availableCount = tier?.availableQuantity || 0;
+    
+    // Only allow adding tickets if there are available ones
+    if (currentCount < availableCount) {
+      handleTicketChange(tierId, currentCount + 1, event);
+    }
+  };
+
+  const handleRemoveTicket = (tierId, event) => {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    
+    const currentCount = selectedTickets[tierId] || 0;
+    if (currentCount > 0) {
+      handleTicketChange(tierId, currentCount - 1, event);
+    }
+  };
+
   const getTotalTickets = () => {
     return Object.values(selectedTickets).reduce((acc, count) => acc + count, 0);
   };
@@ -142,7 +360,7 @@ export default function TicketModal({ event, isOpen, onClose }) {
   const getTicketNames = () => {
     return Object.keys(selectedTickets).map(tierId => {
       const tier = ticketTiers.find(t => t.id === tierId);
-      return `${tier.name} x${selectedTickets[tierId]}`;
+      return `${tier?.name || 'Ticket'} x${selectedTickets[tierId]}`;
     }).join(', ');
   };
 
@@ -243,7 +461,7 @@ export default function TicketModal({ event, isOpen, onClose }) {
                     {step === 1 ? 'Select Tickets' : 'Complete Your Purchase'}
                   </h3>
                   <button
-                    onClick={handleClose}
+                    onClick={(e) => handleClose(e)}
                     className="rounded-full p-1 text-white hover:bg-white/20 transition-colors"
                   >
                     <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -257,71 +475,178 @@ export default function TicketModal({ event, isOpen, onClose }) {
               {step === 1 ? (
                 // Step 1: Select Tickets
                 <div className="px-6 py-4">
-                  <div className="mb-6">
-                    <h4 className="text-lg font-semibold text-gray-900 mb-4">Available Tickets</h4>
-                    <div className="space-y-4">
-                      <div className="bg-white rounded-xl border border-gray-200 p-4 hover:border-amber-500 transition-colors">
-                        <div className="flex items-center justify-between mb-2">
-                          <div>
-                            <h5 className="font-medium text-gray-900">General Admission</h5>
-                            <p className="text-sm text-gray-500">{event?.price === 'Free' ? 'Free' : event?.price}</p>
+                  <div className="space-y-6">
+                    {/* Available Tickets */}
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-900 mb-4">Available Tickets</h4>
+                      <div className="space-y-4">
+                        {ticketTiers.map(tier => (
+                          <div 
+                            key={tier.id} 
+                            className={`border rounded-lg p-4 mb-4 ${
+                              tier.soldOut
+                                ? 'border-gray-200 bg-gray-50 opacity-75'
+                                : tier.isPremium 
+                                  ? 'border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 shadow-sm' 
+                                  : 'border-gray-200'
+                            }`}
+                          >
+                            <div className="flex justify-between mb-2">
+                              <div>
+                                {tier.isPremium && (
+                                  <span className="inline-block px-2 py-1 text-xs font-medium text-amber-700 bg-amber-100 rounded-full mb-1">
+                                    Premium Tier
+                                  </span>
+                                )}
+                                <h5 className={`font-medium ${tier.isPremium ? 'text-amber-800' : 'text-gray-900'}`}>
+                                  {tier.name}
+                                </h5>
+                                <p className={`text-sm ${tier.isPremium ? 'text-amber-700' : 'text-gray-500'}`}>
+                                  From ₦{tier.price.toLocaleString()}
+                                </p>
+                                {tier.description && (
+                                  <p className={`text-xs mt-1 ${tier.isPremium ? 'text-amber-600' : 'text-gray-600'}`}>
+                                    {tier.description}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex items-center">
+                                {tier.soldOut ? (
+                                  <span className="text-red-500 font-medium text-sm">Sold Out</span>
+                                ) : (
+                                  <>
+                                    <button 
+                                      onClick={(e) => handleRemoveTicket(tier.id, e)}
+                                      className={`w-8 h-8 rounded-full flex items-center justify-center text-gray-600 hover:bg-opacity-80 ${
+                                        tier.isPremium ? 'bg-amber-200 hover:bg-amber-300' : 'bg-gray-100 hover:bg-gray-200'
+                                      }`}
+                                    >
+                                      <span>-</span>
+                                    </button>
+                                    <span className="w-10 text-center font-medium">
+                                      {selectedTickets[tier.id] || 0}
+                                    </span>
+                                    <button 
+                                      onClick={(e) => handleAddTicket(tier.id, e)}
+                                      className={`w-8 h-8 rounded-full flex items-center justify-center text-gray-600 hover:bg-opacity-80 ${
+                                        tier.isPremium ? 'bg-amber-200 hover:bg-amber-300' : 'bg-gray-100 hover:bg-gray-200'
+                                      }`}
+                                    >
+                                      <span>+</span>
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            <div className={`text-xs ${tier.soldOut ? 'text-red-500' : tier.isPremium ? 'text-amber-600' : 'text-gray-500'}`}>
+                              {tier.soldOut 
+                                ? 'No tickets available.' 
+                                : tier.isPremium 
+                                  ? `Limited availability. ${tier.availableQuantity} of ${tier.quantity} tickets remaining.` 
+                                  : `${tier.availableQuantity} of ${tier.quantity} tickets remaining.`}
+                            </div>
                           </div>
-                          <div className="flex items-center space-x-3">
-                            <button
-                              onClick={() => setSelectedTickets(Math.max(0, selectedTickets - 1))}
-                              className="h-8 w-8 rounded-full bg-amber-50 text-amber-600 hover:bg-amber-100 flex items-center justify-center transition-colors"
-                            >
-                              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                              </svg>
-                            </button>
-                            <span className="w-8 text-center font-medium">{selectedTickets}</span>
-                            <button
-                              onClick={() => setSelectedTickets(selectedTickets + 1)}
-                              disabled={selectedTickets >= 1}
-                              className={`h-8 w-8 rounded-full flex items-center justify-center transition-colors ${
-                                selectedTickets >= 1 
-                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                                  : 'bg-amber-50 text-amber-600 hover:bg-amber-100'
-                              }`}
-                            >
-                              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {event?.ticketCount} tickets remaining
-                        </div>
-                        {selectedTickets >= 1 && (
-                          <div className="mt-2 text-xs text-amber-600 font-medium">
-                            Note: You can only purchase one ticket at a time.
+                        ))}
+                        
+                        {/* Available Discounts */}
+                        {(event?.has_early_bird || event?.has_multiple_buys) && (
+                          <div className="bg-orange-50 border border-orange-100 rounded-lg p-4 mt-2">
+                            <h5 className="font-medium text-orange-700 mb-2">Available Discounts</h5>
+                            
+                            {event?.has_early_bird && (
+                              <div className="flex items-start space-x-2 mb-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-orange-500 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <div className="text-sm">
+                                  <p className="text-gray-700">Early Bird: <span className="font-medium">{event.early_bird_discount}% off</span></p>
+                                  <p className="text-xs text-gray-500">
+                                    Book early and save! Valid 
+                                  
+                                  </p>
+                                  {/* Debug info - will remove after fixing */}
+                                  <p className="text-xs text-red-500">
+                                    Start: {String(event.early_bird_start_date)} | 
+                                    End: {String(event.early_bird_end_date)}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                            
+                            {event?.has_multiple_buys && (
+                              <div className="flex items-start space-x-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-orange-500 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                                </svg>
+                                <div className="text-sm">
+                                  <p className="text-gray-700">Volume Discount: <span className="font-medium">{event.multiple_buys_discount}% off</span></p>
+                                  <p className="text-xs text-gray-500">
+                                    Buy {event.multiple_buys_min_tickets || 2}+ tickets and save!
+                                  </p>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
                     </div>
+                    
+                    {/* Total */}
+                    <div className="flex justify-between text-sm mb-2">
+                      <span>Total tickets:</span>
+                      <span>{getTotalTickets()}</span>
+                    </div>
+                    
+                    <div className="mt-3 pt-3 border-t border-gray-100">
+                      <div className="flex justify-between text-gray-800">
+                        <span>Subtotal:</span>
+                        <span>₦{totalAmount.toLocaleString()}</span>
+                      </div>
+                      
+                      {showDiscount && (
+                        <div className="flex justify-between text-green-600">
+                          <span>Discount:</span>
+                          <span>-₦{Math.max(discounts.earlyBird, discounts.multipleBuys).toLocaleString()}</span>
+                        </div>
+                      )}
+                      
+                      {!isFreeEvent && (
+                        <div className="flex justify-between text-gray-700 mt-1">
+                          <span>Service Charge:</span>
+                          <span>₦{serviceFee.toLocaleString()}</span>
+                        </div>
+                      )}
+                      
+                      <div className="flex justify-between text-lg font-semibold mt-2 pt-2 border-t border-gray-200">
+                        <span>Total:</span>
+                        <span className={showDiscount ? "font-medium text-green-600" : ""}>
+                          ₦{(finalAmount).toLocaleString()}
+                        </span>
+                      </div>
+                      
+                      {!isFreeEvent && (
+                        <div className="mt-2 text-xs text-gray-500 italic">
+                          * 3% service charge is added once per order regardless of quantity.
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="border-t border-gray-200 pt-4">
-                    <div className="flex items-center justify-between text-sm mb-1">
-                      <span className="font-medium text-gray-700">Total tickets:</span>
-                      <span className="font-medium text-gray-900">{selectedTickets}</span>
-                    </div>
-                    <div className="flex items-center justify-between mb-6">
-                      <span className="font-medium text-gray-700">Total:</span>
-                      <span className="text-lg font-bold text-amber-600">
-                        {event?.price === 'Free' ? 'Free' : 
-                          `₦${(parseFloat(event?.price.toString().replace(/[^\d.]/g, '')) * selectedTickets).toLocaleString()}`}
-                      </span>
-                    </div>
+                  <div className="flex justify-between pt-4">
                     <button
-                      onClick={handleContinue}
-                      disabled={selectedTickets === 0}
-                      className={`w-full rounded-xl py-3 px-4 text-center font-medium transition-all ${
-                        selectedTickets === 0
-                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                          : 'bg-gradient-to-r from-amber-500 to-orange-400 text-white hover:shadow-lg hover:-translate-y-0.5 transform'
+                      onClick={(e) => handleClose(e)}
+                      className="px-4 py-2 border border-gray-200 rounded-md text-gray-700 hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                    
+                    <button
+                      onClick={(e) => handleContinue(e)}
+                      disabled={getTotalTickets() === 0}
+                      className={`px-6 py-2 rounded-md text-white ${
+                        getTotalTickets() === 0
+                          ? 'bg-gray-100 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-amber-500 to-orange-400 hover:bg-amber-600'
                       }`}
                     >
                       Continue
@@ -384,35 +709,53 @@ export default function TicketModal({ event, isOpen, onClose }) {
 
                   <div className="bg-amber-50 rounded-xl p-4 mb-6">
                     <h5 className="font-medium text-gray-900 mb-2">Order Summary</h5>
-                    <div className="flex justify-between items-center text-sm text-gray-600 mb-1">
-                      <span>General Admission x{selectedTickets}</span>
-                      <span>{event?.price === 'Free' ? 'Free' : 
-                        `₦${(parseFloat(event?.price.toString().replace(/[^\d.]/g, '')) * selectedTickets).toLocaleString()}`}</span>
-                    </div>
+                    {Object.entries(selectedTickets).map(([tierId, quantity]) => {
+                      if (quantity > 0) {
+                        const tier = ticketTiers.find(t => t.id === tierId);
+                        return (
+                          <div key={tierId} className="flex justify-between items-center text-sm text-gray-600 mb-1">
+                            <span>{tier?.name || 'Ticket'} x{quantity}</span>
+                            <span>₦{((tier?.price || 0) * quantity).toLocaleString()}</span>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })}
                     <div className="text-xs text-gray-500">For: {event?.title}</div>
                   </div>
 
                   <div className="flex items-center justify-between gap-4">
                     <button
-                      onClick={handleBack}
+                      onClick={(e) => handleBack(e)}
                       className="flex-1 rounded-xl py-3 px-4 text-center font-medium border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
                     >
                       Back
                     </button>
                     <PaystackButton
-                      amount={totalAmount}
+                      amount={finalAmount}
+                      originalAmount={totalAmount}
+                      discountedAmount={null}
+                      discounts={{
+                        earlyBird: discounts.earlyBird,
+                        multipleBuys: discounts.multipleBuys
+                      }}
                       email={formData.email}
                       firstName={formData.firstName}
                       lastName={formData.lastName}
                       phone={formData.phone}
-                      ticketType="General Admission"
+                      ticketType={getTicketNames()}
                       eventId={event?.id}
                       ticketTierId={getSelectedTicketTierId()}
                       disabled={!validateForm()}
                       onSuccess={handlePaymentSuccess}
+                      isFree={isFreeEvent}
                       onFreeSuccess={handleFreeTicketSuccess}
-                      isFree={event?.price === 'Free'}
+                      serviceFee={0}
                     />
+                    {/* Debug info for payment amounts */}
+                    <div className="mt-2 text-xs text-gray-400">
+                      Amount: ₦{finalAmount.toLocaleString()}
+                    </div>
                   </div>
                 </div>
               )}

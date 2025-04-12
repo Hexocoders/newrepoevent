@@ -39,9 +39,40 @@ function CreateEventContent() {
   const [multipleBuysMinTickets, setMultipleBuysMinTickets] = useState('');
   const [multipleBuysDiscount, setMultipleBuysDiscount] = useState('');
   const [isPromotionEnabled, setIsPromotionEnabled] = useState(false);
+  const [isOnline, setIsOnline] = useState(false);
+  const [eventLink, setEventLink] = useState('');
+  const [earlyBirdStartDate, setEarlyBirdStartDate] = useState('');
+  const [earlyBirdEndDate, setEarlyBirdEndDate] = useState('');
   
   const fileInputRef = useRef(null);
   const albumInputRef = useRef(null);
+  
+  // Ticket tiers state
+  const [hasTicketTiers, setHasTicketTiers] = useState(false);
+  const [ticketTiers, setTicketTiers] = useState([
+    { title: '', price: '', description: '', quantity: '' }
+  ]);
+  
+  // Function to add new ticket tier
+  const addTicketTier = () => {
+    setTicketTiers([...ticketTiers, { title: '', price: '', description: '', quantity: '' }]);
+  };
+  
+  // Function to update a specific ticket tier
+  const updateTicketTier = (index, field, value) => {
+    const updatedTiers = [...ticketTiers];
+    updatedTiers[index][field] = value;
+    setTicketTiers(updatedTiers);
+  };
+  
+  // Function to remove a ticket tier
+  const removeTicketTier = (index) => {
+    if (ticketTiers.length > 1) {
+      const updatedTiers = [...ticketTiers];
+      updatedTiers.splice(index, 1);
+      setTicketTiers(updatedTiers);
+    }
+  };
 
   // Add states/provinces data object
   const statesByCountry = {
@@ -1853,6 +1884,7 @@ function CreateEventContent() {
         city: city,
         state: state,
         country: country,
+        location_coordinates: location ? `(${location.lng},${location.lat})` : null,
         event_date: eventDate,
         start_time: startTime,
         end_time: endTime,
@@ -1860,13 +1892,23 @@ function CreateEventContent() {
         is_public: isPublic,
         is_paid: isPaid,
         is_promotion_enabled: isPromotionEnabled,
-        status: 'draft'
+        is_online: isOnline,
+        event_link: eventLink || '',
+        event_type: isOnline ? 'online' : 'physical',
+        online_event_link: isOnline ? (eventLink || '') : '',
+        status: 'draft',
+        // Add early bird discount data
+        has_early_bird: hasEarlyBird,
+        early_bird_start_date: hasEarlyBird ? earlyBirdStartDate : null,
+        early_bird_end_date: hasEarlyBird ? earlyBirdEndDate : null,
+        early_bird_discount: hasEarlyBird ? parseInt(earlyBirdDiscount) || 0 : null,
+        // Add multiple buys discount data
+        has_multiple_buys: hasMultipleBuys,
+        multiple_buys_min_tickets: hasMultipleBuys ? parseInt(multipleBuysMinTickets) || 2 : null,
+        multiple_buys_discount: hasMultipleBuys ? parseInt(multipleBuysDiscount) || 0 : null,
+        ticket_price: isPaid ? Number(price) : 0,
+        ticket_quantity: Number(quantity) || 0
       };
-      
-      // If location coordinates are available, add them
-      if (location) {
-        eventData.location_coordinates = `(${location.lat}, ${location.lng})`;
-      }
       
       console.log('Saving event data to Supabase...', eventData);
       
@@ -1888,7 +1930,7 @@ function CreateEventContent() {
 
       console.log('Event created successfully:', eventResult);
 
-      // If it's a paid event, create a ticket tier
+      // Create a standard ticket tier for paid events
       if (isPaid && eventResult.id) {
         try {
           const ticketTierData = {
@@ -1901,24 +1943,64 @@ function CreateEventContent() {
             updated_at: new Date().toISOString()
           };
           
-          console.log('Creating ticket tier:', ticketTierData);
+          console.log('Creating standard ticket tier:', ticketTierData);
           
           const { error: ticketError } = await supabase
             .from('ticket_tiers')
             .insert([ticketTierData]);
             
           if (ticketError) {
-            console.error('Error creating ticket tier:', ticketError.message);
+            console.error('Error creating standard ticket tier:', ticketError.message);
             // Continue with event creation even if ticket tier creation fails
           } else {
-            console.log('Ticket tier created successfully');
+            console.log('Standard ticket tier created successfully');
+          }
+          
+          // If premium ticket tiers are enabled, create those as well
+          if (hasTicketTiers && ticketTiers.length > 0) {
+            try {
+              // Prepare premium ticket tier data for bulk insert
+              const premiumTiersData = ticketTiers.map(tier => ({
+                event_id: eventResult.id,
+                name: 'Premium Tier', // Use original name column for backwards compatibility
+                description: 'Premium entry ticket', // Use original description for backwards compatibility
+                price: 0, // Standard price remains 0 for premium tiers
+                quantity: 0, // Standard quantity remains 0 for premium tiers
+                // New tier-specific columns
+                tier_title: tier.title || 'Premium Tier',
+                tier_description: tier.description || 'Premium entry ticket',
+                tier_price: parseFloat(tier.price) || 0,
+                tier_quantity: parseInt(tier.quantity) || 0,
+                tier_available_tickets: parseInt(tier.quantity) || 0, // Initially available = total quantity
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              }));
+              
+              console.log('Creating premium ticket tiers:', premiumTiersData);
+              
+              // Insert all premium ticket tiers in one operation
+              const { error: premiumTiersError } = await supabase
+                .from('ticket_tiers')
+                .insert(premiumTiersData);
+                
+              if (premiumTiersError) {
+                console.error('Error creating premium ticket tiers:', premiumTiersError.message);
+                // Continue with event creation even if premium ticket tier creation fails
+              } else {
+                console.log('Premium ticket tiers created successfully');
+              }
+            } catch (premiumTiersError) {
+              console.error('Error creating premium ticket tiers:', premiumTiersError.message);
+              // Continue with event creation even if premium ticket tier creation fails
+            }
           }
         } catch (ticketError) {
           console.error('Error creating ticket tier:', ticketError.message);
           // Continue with event creation even if ticket tier creation fails
         }
-      } else if (eventResult.id && quantity) {
+      } 
         // If it's a free event but has quantity, create a free ticket tier
+      else if (eventResult.id && quantity) {
         try {
           const freeTicketTierData = {
             event_id: eventResult.id,
@@ -2763,7 +2845,73 @@ function CreateEventContent() {
                           </svg>
                           Add organizer
                         </button>
-                      </div>
+                  </div>
+                  
+                      {/* Event Type Selection */}
+                      <div className="flex items-center space-x-6 mt-4 bg-slate-50 p-4 rounded-lg">
+                    <div className="flex items-center">
+                      <input
+                        type="radio"
+                            id="physical"
+                            name="eventType"
+                            value="physical"
+                            checked={!isOnline}
+                            onChange={() => {
+                              setIsOnline(false);
+                              setEventLink('');
+                            }}
+                        className="h-4 w-4 text-indigo-500 focus:ring-indigo-400"
+                      />
+                          <label htmlFor="physical" className="ml-2 text-sm font-medium text-slate-700 flex items-center">
+                            <svg className="h-4 w-4 mr-1 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            Physical Event
+                      </label>
+                    </div>
+                    
+                    <div className="flex items-center">
+                      <input
+                        type="radio"
+                            id="online"
+                            name="eventType"
+                            value="online"
+                            checked={isOnline}
+                            onChange={() => setIsOnline(true)}
+                        className="h-4 w-4 text-indigo-500 focus:ring-indigo-400"
+                      />
+                          <label htmlFor="online" className="ml-2 text-sm font-medium text-slate-700 flex items-center">
+                            <svg className="h-4 w-4 mr-1 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                            Online Event
+                      </label>
+                    </div>
+                  </div>
+                      
+                      {/* Online Event Link Input */}
+                      {isOnline && (
+                        <div className="mt-4">
+                          <label htmlFor="eventLink" className="block text-sm font-medium text-slate-700 mb-1">
+                            Event Link
+                          </label>
+                          <input
+                            type="url"
+                            id="eventLink"
+                            value={eventLink}
+                            onChange={(e) => setEventLink(e.target.value)}
+                            placeholder="https://your-event-link.com"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            required={isOnline}
+                            pattern="https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)"
+                            title="Please enter a valid URL starting with http:// or https://"
+                          />
+                          <p className="mt-1 text-xs text-slate-500">
+                            Enter a valid URL (e.g., https://zoom.us/j/123456789)
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2816,46 +2964,26 @@ function CreateEventContent() {
                       </div>
                     </div>
                     
-                    {/* Ticket Tiers */}
+                    {/* Standard Ticket / Ticket Tiers Toggle */}
+                    {isPaid && (
                     <div className="mb-6">
-                      <div className="flex space-x-4 mb-4">
-                        <div className="flex items-center">
+                        <div className="flex items-center mb-4">
                           <input
                             type="checkbox"
-                            id="tierOne"
+                            id="enableTicketTiers"
+                            checked={hasTicketTiers}
+                            onChange={(e) => setHasTicketTiers(e.target.checked)}
                             className="h-4 w-4 text-indigo-500 focus:ring-indigo-400 rounded"
                           />
-                          <label htmlFor="tierOne" className="ml-2 text-sm font-medium text-slate-700">
-                            Tier one
+                          <label htmlFor="enableTicketTiers" className="ml-2 text-sm font-medium text-slate-700">
+                            Enable premium ticket tiers (VIP, etc.)
                           </label>
                         </div>
-                        
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            id="tierTwo"
-                            className="h-4 w-4 text-indigo-500 focus:ring-indigo-400 rounded"
-                          />
-                          <label htmlFor="tierTwo" className="ml-2 text-sm font-medium text-slate-700">
-                            Tier two
-                          </label>
                         </div>
-                        
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            id="vipTier"
-                            className="h-4 w-4 text-indigo-500 focus:ring-indigo-400 rounded"
-                          />
-                          <label htmlFor="vipTier" className="ml-2 text-sm font-medium text-slate-700">
-                            VIP tier
-                          </label>
-                        </div>
-                      </div>
-                    </div>
+                    )}
                     
-                    {/* Quantity and Price */}
-                    {isPaid ? (
+                    {/* Quantity and Price for Standard Ticket */}
+                    {isPaid && (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                         <div>
                           <label htmlFor="quantity" className="block text-sm font-medium text-slate-700 mb-1">
@@ -2888,7 +3016,108 @@ function CreateEventContent() {
                           />
                         </div>
                       </div>
-                    ) : (
+                    )}
+                    
+                    {/* Premium Ticket Tiers */}
+                    {isPaid && hasTicketTiers && (
+                      <div className="space-y-6 mb-6 border border-slate-200 rounded-lg p-4">
+                        <h3 className="text-sm font-medium text-slate-700">Premium Ticket Tiers</h3>
+                        
+                        {ticketTiers.map((tier, index) => (
+                          <div key={index} className="p-4 border border-slate-200 rounded-lg space-y-4">
+                            <div className="flex justify-between items-center">
+                              <h4 className="text-sm font-medium text-slate-700">Tier {index + 1}</h4>
+                              {ticketTiers.length > 1 && (
+                                <button 
+                                  type="button" 
+                                  onClick={() => removeTicketTier(index)}
+                                  className="text-red-500 hover:text-red-700"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
+                            
+                            <div>
+                              <label htmlFor={`title-${index}`} className="block text-sm font-medium text-slate-700 mb-1">
+                                Tier Title
+                              </label>
+                              <input
+                                type="text"
+                                id={`title-${index}`}
+                                value={tier.title}
+                                onChange={(e) => updateTicketTier(index, 'title', e.target.value)}
+                                placeholder="VIP, Premium, etc."
+                                className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              />
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label htmlFor={`price-${index}`} className="block text-sm font-medium text-slate-700 mb-1">
+                                  Price ₦
+                                </label>
+                                <input
+                                  type="number"
+                                  id={`price-${index}`}
+                                  value={tier.price}
+                                  onChange={(e) => updateTicketTier(index, 'price', e.target.value)}
+                                  placeholder="5000"
+                                  min="0"
+                                  step="0.01"
+                                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                />
+                              </div>
+                              
+                              <div>
+                                <label htmlFor={`quantity-${index}`} className="block text-sm font-medium text-slate-700 mb-1">
+                                  Quantity
+                                </label>
+                                <input
+                                  type="number"
+                                  id={`quantity-${index}`}
+                                  value={tier.quantity}
+                                  onChange={(e) => updateTicketTier(index, 'quantity', e.target.value)}
+                                  placeholder="100"
+                                  min="1"
+                                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                />
+                              </div>
+                            </div>
+                            
+                            <div>
+                              <label htmlFor={`description-${index}`} className="block text-sm font-medium text-slate-700 mb-1">
+                                Description
+                              </label>
+                              <textarea
+                                id={`description-${index}`}
+                                value={tier.description}
+                                onChange={(e) => updateTicketTier(index, 'description', e.target.value)}
+                                placeholder="Describe what's included with this ticket tier"
+                                rows="2"
+                                className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              ></textarea>
+                            </div>
+                          </div>
+                        ))}
+                        
+                        <button
+                          type="button"
+                          onClick={addTicketTier}
+                          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                        >
+                          <svg className="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+                          </svg>
+                          Add Ticket Tier
+                        </button>
+                      </div>
+                    )}
+                    
+                    {/* Free event tickets */}
+                    {!isPaid && (
                       <div className="mb-6">
                         <label htmlFor="freeQuantity" className="block text-sm font-medium text-slate-700 mb-1">
                           Free Ticket Quantity
@@ -2911,7 +3140,7 @@ function CreateEventContent() {
                       <p className="text-xs text-slate-500">Set the conditions for your discounts</p>
                       
                       {/* Early bird buys */}
-                      <div className="flex items-center gap-4">
+                      <div className="flex flex-col space-y-4">
                         <div className="flex items-center">
                             <input
                               type="checkbox"
@@ -2921,32 +3150,65 @@ function CreateEventContent() {
                             className="h-4 w-4 text-indigo-500 focus:ring-indigo-400"
                             />
                           <label htmlFor="earlyBird" className="ml-2 text-sm text-slate-700">
-                              Early bird buys
+                            Early bird discount
                             </label>
                           </div>
+                        
+                        {hasEarlyBird && (
+                          <div className="pl-6 space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label htmlFor="earlyBirdStartDate" className="block text-xs font-medium text-slate-700 mb-1">
+                                  Early Bird Start Date
+                                </label>
                             <input
-                              type="number"
-                              placeholder="Days to qualify"
-                          value={earlyBirdDays}
-                          onChange={(e) => setEarlyBirdDays(e.target.value)}
-                          className="flex-1 px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                          disabled={!hasEarlyBird}
-                        />
+                                  type="date"
+                                  id="earlyBirdStartDate"
+                                  value={earlyBirdStartDate}
+                                  onChange={(e) => setEarlyBirdStartDate(e.target.value)}
+                                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                  disabled={!hasEarlyBird}
+                                />
+                              </div>
+                              <div>
+                                <label htmlFor="earlyBirdEndDate" className="block text-xs font-medium text-slate-700 mb-1">
+                                  Early Bird End Date
+                                </label>
+                                <input
+                                  type="date"
+                                  id="earlyBirdEndDate"
+                                  value={earlyBirdEndDate}
+                                  onChange={(e) => setEarlyBirdEndDate(e.target.value)}
+                                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                  disabled={!hasEarlyBird}
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <label htmlFor="earlyBirdDiscount" className="block text-xs font-medium text-slate-700 mb-1">
+                                Discount Percentage
+                              </label>
                               <select
-                          value={earlyBirdDiscount}
-                          onChange={(e) => setEarlyBirdDiscount(e.target.value)}
-                          className="px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                          disabled={!hasEarlyBird}
+                                id="earlyBirdDiscount"
+                                value={earlyBirdDiscount}
+                                onChange={(e) => setEarlyBirdDiscount(e.target.value)}
+                                className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                disabled={!hasEarlyBird}
                               >
                                 <option value="">Select discount</option>
                                 <option value="10">10% off</option>
                                 <option value="20">20% off</option>
                                 <option value="30">30% off</option>
+                                <option value="40">40% off</option>
+                                <option value="50">50% off</option>
                               </select>
+                              </div>
+                            </div>
+                        )}
                         </div>
                         
                       {/* Multiple buys */}
-                      <div className="flex items-center gap-4">
+                      <div className="flex flex-col space-y-4">
                         <div className="flex items-center">
                             <input
                               type="checkbox"
@@ -2956,33 +3218,54 @@ function CreateEventContent() {
                             className="h-4 w-4 text-indigo-500 focus:ring-indigo-400"
                             />
                           <label htmlFor="multipleBuys" className="ml-2 text-sm text-slate-700">
-                              Multiple buys
+                            Multiple tickets discount
                             </label>
                           </div>
+                        
+                        {hasMultipleBuys && (
+                          <div className="pl-6 space-y-4">
+                            <div>
+                              <label htmlFor="multipleBuysMinTickets" className="block text-xs font-medium text-slate-700 mb-1">
+                                Minimum Tickets to Qualify
+                              </label>
                             <input
                               type="number"
-                              placeholder="Tickets to qualify"
-                          value={multipleBuysMinTickets}
-                          onChange={(e) => setMultipleBuysMinTickets(e.target.value)}
-                          className="flex-1 px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                          disabled={!hasMultipleBuys}
-                        />
+                                id="multipleBuysMinTickets"
+                                value={multipleBuysMinTickets}
+                                onChange={(e) => setMultipleBuysMinTickets(e.target.value)}
+                                min="2"
+                                placeholder="2"
+                                className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                disabled={!hasMultipleBuys}
+                              />
+                              <p className="mt-1 text-xs text-slate-500">Minimum number of tickets a buyer needs to purchase to receive the discount</p>
+                            </div>
+                            <div>
+                              <label htmlFor="multipleBuysDiscount" className="block text-xs font-medium text-slate-700 mb-1">
+                                Discount Percentage
+                              </label>
                               <select
-                          value={multipleBuysDiscount}
-                          onChange={(e) => setMultipleBuysDiscount(e.target.value)}
-                          className="px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                          disabled={!hasMultipleBuys}
+                                id="multipleBuysDiscount"
+                                value={multipleBuysDiscount}
+                                onChange={(e) => setMultipleBuysDiscount(e.target.value)}
+                                className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                disabled={!hasMultipleBuys}
                               >
                                 <option value="">Select discount</option>
                                 <option value="10">10% off</option>
                                 <option value="20">20% off</option>
                                 <option value="30">30% off</option>
+                                <option value="40">40% off</option>
+                                <option value="50">50% off</option>
                               </select>
+                              </div>
+                            </div>
+                        )}
                       </div>
                     </div>
                     
                     {/* Sale Date */}
-                    <div className="mt-6">
+                    {/* <div className="mt-6">
                       <h3 className="text-sm font-medium text-slate-700 mb-1">Sale date</h3>
                       <p className="text-xs text-slate-500 mb-4">Set the sale time when your audience is able to purchase the tickets</p>
                       
@@ -3062,7 +3345,7 @@ function CreateEventContent() {
                         </div>
                       </div>
                     </div>
-                    
+                     */}
                     {/* Promotion */}
                     <div className="mt-6">
                       <div className="flex items-center justify-between mb-2">

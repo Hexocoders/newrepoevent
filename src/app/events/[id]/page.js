@@ -93,16 +93,30 @@ export default function EventPreview() {
       return;
     }
 
+    // Save quantity to localStorage for the PaystackButton component to access
+    localStorage.setItem('selectedTicketQuantity', quantity.toString());
+
+    // Calculate amount with new fee structure
+    const baseAmount = selectedTier.price;
+    const totalBaseAmount = baseAmount * quantity;
+    const feeAmount = baseAmount * 0.03; // 3% service charge on single ticket price
+    const totalAmountWithFee = totalBaseAmount + feeAmount;
+    const payableAmountInKobo = Math.round(totalAmountWithFee * 100); // Convert to kobo
+
+    console.log(`Payment breakdown: Subtotal: ₦${totalBaseAmount}, Fee: ₦${feeAmount.toFixed(2)}, Total: ₦${totalAmountWithFee.toFixed(2)}`);
+
     const handler = window.PaystackPop.setup({
       key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
       email: user.email,
-      amount: selectedTier.price * quantity * 100, // Convert to kobo
+      amount: payableAmountInKobo, // Amount with fee in kobo
       currency: 'NGN',
       ref: new Date().getTime().toString(),
       metadata: {
         event_id: event.id,
         ticket_tier_id: selectedTier.id,
         quantity: quantity,
+        original_price: baseAmount,
+        fee_amount: feeAmount,
         custom_fields: [
           {
             display_name: "Event Name",
@@ -286,68 +300,102 @@ export default function EventPreview() {
                 </div>
               ) : (
                 <>
-                  {ticketTiers.map(tier => (
-                    <div 
-                      key={tier.id}
-                      className={`border rounded-lg p-4 mb-4 cursor-pointer transition-all ${
-                        selectedTier?.id === tier.id 
-                          ? 'border-[#0077B6] bg-blue-50' 
-                          : 'border-gray-200 hover:border-[#0077B6]'
-                      }`}
-                      onClick={() => setSelectedTier(tier)}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h3 className="font-medium">{tier.name || 'Standard Ticket'}</h3>
-                          <p className="text-sm text-gray-600">{tier.description || 'Regular admission'}</p>
-                        </div>
-                        <p className="font-semibold">{tier.price ? `₦${tier.price.toLocaleString()}` : 'Free'}</p>
-              </div>
-                      
-                      {selectedTier?.id === tier.id && (
-                        <div className="mt-4 pt-4 border-t">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Quantity
-                          </label>
-                          <select
-                            value={quantity}
-                            onChange={(e) => setQuantity(Number(e.target.value))}
-                            className="block w-full rounded-md border border-gray-300 p-2 focus:border-[#0077B6] focus:ring-[#0077B6]"
+                  <div className="w-full p-6 bg-white rounded-xl shadow-md">
+                    <h2 className="text-xl font-semibold mb-4">Get Tickets</h2>
+                    
+                    {/* Ticket tier selection */}
+                    <div className="mb-6">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Select ticket type
+                      </label>
+                      <div className="space-y-3">
+                        {ticketTiers.map((tier) => (
+                          <div 
+                            key={tier.id}
+                            onClick={() => setSelectedTier(tier)}
+                            className={`flex justify-between p-3 rounded-lg cursor-pointer ${
+                              selectedTier?.id === tier.id
+                                ? 'bg-[#0077B6]/10 border border-[#0077B6]'
+                                : 'bg-gray-50 border border-gray-200'
+                            }`}
                           >
-                            {[...Array(10)].map((_, i) => (
-                              <option key={i + 1} value={i + 1}>
-                                {i + 1}
-                              </option>
-                            ))}
-                          </select>
-                </div>
-              )}
+                            <div>
+                              <p className="font-medium">{tier.name || "Standard Ticket"}</p>
+                              <p className="text-sm text-gray-500">{tier.description || "General admission"}</p>
+                            </div>
+                            <div className="font-bold">₦{tier.price.toLocaleString()}</div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ))}
-                  
-                  {selectedTier && (
-                    <div className="mt-6">
-                      <div className="flex justify-between text-sm mb-2">
-                        <span>Price per ticket</span>
-                        <span>{selectedTier.price ? `₦${selectedTier.price.toLocaleString()}` : 'Free'}</span>
-            </div>
-                      <div className="flex justify-between text-sm mb-2">
-                        <span>Quantity</span>
-                        <span>{quantity}</span>
-          </div>
-                      <div className="flex justify-between font-semibold text-lg border-t pt-2">
-                        <span>Total</span>
-                        <span>{selectedTier.price ? `₦${(selectedTier.price * quantity).toLocaleString()}` : 'Free'}</span>
-        </div>
-
-                      <button
-                        onClick={handlePurchase}
-                        className="w-full mt-4 bg-[#0077B6] text-white py-3 px-4 rounded-lg font-medium hover:bg-[#0077B6]/90 transition-colors"
-                      >
-                        {selectedTier.price ? 'Get Tickets' : 'Register'}
-                  </button>
-                </div>
-                  )}
+                    
+                    {/* Quantity selector */}
+                    {selectedTier && (
+                      <div className="mb-6">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Quantity
+                        </label>
+                        <div className="flex items-center">
+                          <button
+                            onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                            className="p-2 bg-gray-100 rounded-l-lg border border-gray-300"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                            </svg>
+                          </button>
+                          <input
+                            type="number"
+                            min="1"
+                            value={quantity}
+                            onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                            className="w-16 text-center border-y border-gray-300 py-2"
+                          />
+                          <button
+                            onClick={() => setQuantity(quantity + 1)}
+                            className="p-2 bg-gray-100 rounded-r-lg border border-gray-300"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12M6 12h12" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Price summary */}
+                    {selectedTier && (
+                      <div className="mb-6 border-t border-gray-200 pt-4">
+                        <div className="flex justify-between mb-1">
+                          <span className="text-gray-600">Ticket Price</span>
+                          <span className="font-medium">₦{(selectedTier.price * quantity).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-gray-600">Service Charge</span>
+                          <span className="font-medium">₦{(selectedTier.price * 0.03).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between font-bold text-lg mt-2 pt-2 border-t border-gray-200">
+                          <span>Total</span>
+                          <span>₦{(selectedTier.price * quantity + selectedTier.price * 0.03).toLocaleString()}</span>
+                        </div>
+                        <div className="mt-2 text-xs text-gray-500 italic">
+                          * 3% service charge is added once per order regardless of quantity.
+                        </div>
+                      </div>
+                    )}
+                    
+                    <button
+                      onClick={handlePurchase}
+                      disabled={!selectedTier}
+                      className={`w-full py-3 px-4 rounded-lg text-white font-medium ${
+                        selectedTier
+                          ? 'bg-[#0077B6] hover:bg-[#0077B6]/90 transition-colors'
+                          : 'bg-gray-300 cursor-not-allowed'
+                      }`}
+                    >
+                      {selectedTier ? `Buy ${quantity > 1 ? `${quantity} Tickets` : 'Ticket'} (₦${(selectedTier.price * quantity + selectedTier.price * 0.03).toLocaleString()})` : 'Select a ticket type'}
+                    </button>
+                  </div>
                 </>
               )}
               </div>

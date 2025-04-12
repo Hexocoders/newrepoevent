@@ -15,7 +15,14 @@ export default function PaystackButton({
   disabled = false,
   onSuccess,
   onFreeSuccess,
-  isFree = false
+  isFree = false,
+  discounts = { 
+    earlyBird: 0, 
+    multipleBuys: 0 
+  },
+  originalAmount = null,
+  discountedAmount = null,
+  serviceFee = 0
 }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isScriptLoaded, setIsScriptLoaded] = useState(false);
@@ -146,7 +153,8 @@ export default function PaystackButton({
         amount,
         eventId,
         ticketType,
-        ticketTierId
+        ticketTierId,
+        discounts
       });
       
       // Get the selected quantity from localStorage or default to 1
@@ -154,18 +162,42 @@ export default function PaystackButton({
         ? parseInt(localStorage.getItem('selectedTicketQuantity'), 10)
         : 1;
 
-      // Calculate total amount with 3% fee
-      const baseAmount = amount * selectedQuantity;
-      const amountWithFee = baseAmount * 1.03; // Add 3% fee
-      const payableAmount = Math.round(amountWithFee * 100); // Convert to kobo
+      // Calculate total amount with service fee
+      // First calculate the base amount (total before fees)
+      const baseAmount = discountedAmount !== null ? discountedAmount : amount;
+      
+      // When discountedAmount is passed, it already includes the quantity multiplication
+      // from the TicketModal component, so we shouldn't multiply by quantity here again
+      const totalBaseAmount = baseAmount;
+      
+      // Use the provided service fee instead of calculating it
+      const feeAmount = serviceFee || 0;
+      const amountWithFee = totalBaseAmount + feeAmount;
+      
+      // Convert to kobo (smallest currency unit) for Paystack
+      const payableAmount = Math.round(amountWithFee * 100);
 
-      console.log(`Base amount: ${baseAmount}, With 3% fee: ${amountWithFee}`);
+      console.log(`Ticket details: Price: ₦${amount}, Discounted: ₦${baseAmount}, Quantity: ${selectedQuantity}`);
+      console.log(`Payment breakdown: Subtotal: ₦${totalBaseAmount}, Service fee: ₦${feeAmount.toFixed(2)}, Total: ₦${amountWithFee.toFixed(2)}`);
+      console.log(`Payable amount in kobo: ${payableAmount}`);
+
+      // Add debug information to the page
+      console.log('[DEBUG] Amount comparison:');
+      console.log(`- Amount received from TicketModal: ₦${baseAmount}`);
+      console.log(`- Service fee received: ₦${feeAmount}`);
+      console.log(`- Final amount to charge: ₦${amountWithFee}`);
+      console.log(`- Final amount in kobo: ${payableAmount}`);
+      
+      // Show a warning if amount seems doubled
+      if (amountWithFee > 200000) {
+        console.warn('WARNING: Payment amount is unusually high. Check for duplicate calculations.');
+      }
 
       // Initialize Paystack
       const handler = window.PaystackPop.setup({
         key: paystackKey,
         email,
-        amount: payableAmount, // Amount with 3% fee in kobo
+        amount: payableAmount, // Amount with service fee in kobo
         currency: 'NGN',
         ref: reference,
         channels: ['card', 'bank', 'ussd', 'qr', 'mobile_money', 'bank_transfer'],
@@ -173,7 +205,11 @@ export default function PaystackButton({
           event_id: eventId,
           ticket_type: ticketType,
           ticket_tier_id: ticketTierId,
-          original_amount: baseAmount, // Store original amount without fee
+          original_amount: originalAmount || amount, // Store original amount without discounts
+          applied_early_bird: discounts.earlyBird > 0,
+          early_bird_discount_amount: discounts.earlyBird,
+          applied_multiple_buys: discounts.multipleBuys > 0,
+          multiple_buys_discount_amount: discounts.multipleBuys,
           custom_fields: [
             {
               display_name: "Event ID",
@@ -215,7 +251,13 @@ export default function PaystackButton({
             customer_name: `${firstName} ${lastName}`,
             customer_phone: phone || '',
             ticket_type: ticketType,
-            price_paid: amount,
+            price_paid: discountedAmount !== null ? discountedAmount : amount,
+            original_price: originalAmount || amount,
+            discounted_price: discountedAmount,
+            applied_early_bird_discount: discounts.earlyBird > 0,
+            early_bird_discount_amount: discounts.earlyBird,
+            applied_multiple_buys_discount: discounts.multipleBuys > 0,
+            multiple_buys_discount_amount: discounts.multipleBuys,
             transaction_id: response.transaction,
             ticket_tier_id: ticketTierId,
             status: 'active',
@@ -285,6 +327,33 @@ export default function PaystackButton({
     ? "w-full px-6 py-3 bg-gray-300 text-gray-500 rounded-xl font-medium cursor-not-allowed"
     : "w-full px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-400 text-white rounded-xl font-medium hover:shadow-lg hover:-translate-y-0.5 transform transition-all";
   
+  // Calculate the display text for the button
+  let buttonText = "Complete Purchase";
+  if (isProcessing) {
+    buttonText = (
+      <span className="flex items-center justify-center">
+        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        Processing...
+      </span>
+    );
+  } else if (isFree) {
+    buttonText = "Get Free Ticket";
+  } else {
+    // For paid tickets, we can add some additional information
+    const selectedQuantity = localStorage.getItem('selectedTicketQuantity') 
+      ? parseInt(localStorage.getItem('selectedTicketQuantity'), 10) 
+      : 1;
+    
+    if (selectedQuantity > 1) {
+      buttonText = `Pay for ${selectedQuantity} Tickets (+ service charge)`;
+    } else {
+      buttonText = "Complete Purchase (+ service charge)";
+    }
+  }
+  
   return (
     <button
       type="button"
@@ -292,17 +361,7 @@ export default function PaystackButton({
       disabled={disabled || isProcessing}
       className={buttonClass}
     >
-      {isProcessing ? (
-        <span className="flex items-center justify-center">
-          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-          Processing...
-        </span>
-      ) : (
-        isFree ? "Get Free Ticket" : "Complete Purchase"
-      )}
+      {buttonText}
     </button>
   );
 }

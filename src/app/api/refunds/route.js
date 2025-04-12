@@ -172,13 +172,25 @@ export async function POST(request) {
     console.log(`Refund amount: ${refundAmount}`);
     
     // Continue with normal Paystack refund if we have a payment reference
-    // Initiate refund with Paystack
     console.log(`Initiating Paystack refund for ${tableName} with reference:`, paymentRef);
+    
+    // Calculate refund amount (keep 3% as Paystack fee)
+    const originalAmount = parseFloat(ticket.price_paid) || 0;
+    // Use the provided amount if available, otherwise calculate 97% of original
+    const finalRefundAmount = amount !== undefined ? parseFloat(amount) : (originalAmount * 0.97);
+    
+    // Add quantity information to the reason if available
+    const ticketQuantity = ticket.quantity || 1;
+    const refundReason = ticketQuantity > 1 
+      ? `${reason} (Refunding ${ticketQuantity} tickets minus 3% fee)`
+      : reason;
+    
+    console.log(`Refunding ${finalRefundAmount.toFixed(2)} of ${originalAmount} (keeping 3% fee), quantity: ${ticketQuantity}`);
     
     const refundResult = await initiatePaystackRefund(
       paymentRef,
-      refundAmount,
-      reason || 'Event cancelled by organizer'
+      finalRefundAmount,
+      refundReason
     );
     
     if (!refundResult.success) {
@@ -194,15 +206,15 @@ export async function POST(request) {
       .insert({
         ticket_id: ticket.id,
         event_id: ticket.event_id,
-        amount: refundAmount,
+        amount: finalRefundAmount,
         payment_reference: paymentRef,
         paystack_refund_reference: refundResult.paystackReference,
         paystack_response: refundResult.paystackResponse,
-        reason: reason || 'Event cancelled by organizer',
+        reason: refundReason,
         status: 'processed',
         buyer_email: ticket.buyer_email || ticket.customer_email,
         buyer_name: ticket.buyer_name || ticket.customer_name,
-        notes: 'Refunded only the original ticket price (excluding processing fees)'
+        notes: 'Refunded the original ticket price minus 3% processing fee'
       })
       .select()
       .single();
