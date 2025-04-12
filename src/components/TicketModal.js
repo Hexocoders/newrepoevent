@@ -713,7 +713,9 @@ export default function TicketModal({ event, isOpen, onClose }) {
                       if (quantity > 0) {
                         const tier = ticketTiers.find(t => t.id === tierId);
                         return (
-                          <div key={tierId} className="flex justify-between items-center text-sm text-gray-600 mb-1">
+                          <div key={tierId} className={`flex justify-between items-center text-sm mb-1 ${
+                            tier?.isPremium ? 'text-amber-700 font-medium' : 'text-gray-600'
+                          }`}>
                             <span>{tier?.name || 'Ticket'} x{quantity}</span>
                             <span>₦{((tier?.price || 0) * quantity).toLocaleString()}</span>
                           </div>
@@ -721,7 +723,7 @@ export default function TicketModal({ event, isOpen, onClose }) {
                       }
                       return null;
                     })}
-                    <div className="text-xs text-gray-500">For: {event?.title}</div>
+                    <div className="text-xs text-gray-500 mt-2">For: {event?.title}</div>
                   </div>
 
                   <div className="flex items-center justify-between gap-4">

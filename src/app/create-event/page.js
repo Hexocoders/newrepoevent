@@ -46,7 +46,7 @@ function CreateEventContent() {
   
   const fileInputRef = useRef(null);
   const albumInputRef = useRef(null);
-  
+
   // Ticket tiers state
   const [hasTicketTiers, setHasTicketTiers] = useState(false);
   const [ticketTiers, setTicketTiers] = useState([
@@ -2978,8 +2978,8 @@ function CreateEventContent() {
                           <label htmlFor="enableTicketTiers" className="ml-2 text-sm font-medium text-slate-700">
                             Enable premium ticket tiers (VIP, etc.)
                           </label>
-                        </div>
-                        </div>
+                      </div>
+                    </div>
                     )}
                     
                     {/* Quantity and Price for Standard Ticket */}
@@ -3264,88 +3264,7 @@ function CreateEventContent() {
                       </div>
                     </div>
                     
-                    {/* Sale Date */}
-                    {/* <div className="mt-6">
-                      <h3 className="text-sm font-medium text-slate-700 mb-1">Sale date</h3>
-                      <p className="text-xs text-slate-500 mb-4">Set the sale time when your audience is able to purchase the tickets</p>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <div>
-                          <label htmlFor="saleStartDate" className="block text-sm font-medium text-slate-700 mb-1">
-                            Start Date
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="date"
-                              id="saleStartDate"
-                              className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            />
-                            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                              </svg>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <label htmlFor="saleStartTime" className="block text-sm font-medium text-slate-700 mb-1">
-                            Start Time
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="time"
-                              id="saleStartTime"
-                              className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            />
-                            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              </svg>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label htmlFor="saleEndDate" className="block text-sm font-medium text-slate-700 mb-1">
-                            End Date
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="date"
-                              id="saleEndDate"
-                              className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            />
-                            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                              </svg>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <label htmlFor="saleEndTime" className="block text-sm font-medium text-slate-700 mb-1">
-                            End Time
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="time"
-                              id="saleEndTime"
-                              className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            />
-                            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              </svg>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                     */}
+                    
                     {/* Promotion */}
                     <div className="mt-6">
                       <div className="flex items-center justify-between mb-2">

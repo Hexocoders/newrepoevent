@@ -8,6 +8,7 @@ import ProtectedRoute from '../components/ProtectedRoute';
 import { supabase } from '../lib/supabaseClient';
 import Sidebar from '../components/Sidebar';
 import { useRouter } from 'next/navigation';
+import TicketModal from '../components/TicketModal';
 
 function DashboardContent() {
   const router = useRouter();
@@ -21,6 +22,7 @@ function DashboardContent() {
   // Add state for dashboard data
   const [salesData, setSalesData] = useState([]);
   const [premiumTiersData, setPremiumTiersData] = useState([]);
+  const [events, setEvents] = useState([]);
   const [eventStats, setEventStats] = useState({
     revenue: 0,
     rawRevenue: 0,
@@ -33,6 +35,10 @@ function DashboardContent() {
     privateEventsCount: 0,
     premiumTiersCount: 0
   });
+  
+  // Add ticket modal state
+  const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(null);
   
   // Add pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -101,6 +107,9 @@ function DashboardContent() {
           .order('created_at', { ascending: false });
           
         if (eventsError) throw eventsError;
+        
+        // Store the raw events data for use with the ticket modal
+        setEvents(events);
         
         // Get the event IDs for fetching paid tickets
         const eventIds = events.map(event => event.id);
@@ -548,55 +557,62 @@ function DashboardContent() {
                     sum + (parseFloat(ticket.price_paid) || 0), 0
                   );
                 } else {
-                  // Fallback: use tier price * soldQuantity
+                  // Otherwise estimate revenue from tier price and sales
                   tierRevenue = price * soldQuantity;
                 }
                 
-                // Get event date and status
+                // Format event date
                 const eventDate = new Date(event.event_date);
-                const today = new Date();
-                const diffTime = eventDate - today;
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                
-                // Format date
                 const formattedDate = eventDate.toLocaleDateString('en-US', {
                   weekday: 'long',
                   month: 'long',
                   day: 'numeric'
                 });
                 
-                // Determine status color and text
-                let status = '';
-                let statusColor = '';
+                // Calculate status based on event date
+                const today = new Date();
+                const diffTime = eventDate.getTime() - today.getTime();
+                const diffDays = Math.ceil(diffTime / (1000 * 3600 * 24));
+                
+                let status;
+                let statusColor;
                 
                 if (diffDays < 0) {
-                  status = 'Past event';
-                  statusColor = 'text-gray-500 bg-gray-50';
+                  status = 'Past';
+                  statusColor = 'text-slate-500 bg-slate-100';
                 } else if (diffDays === 0) {
                   status = 'Today';
-                  statusColor = 'text-orange-500 bg-orange-50';
+                  statusColor = 'text-purple-500 bg-purple-50';
+                } else if (diffDays === 1) {
+                  status = 'Tomorrow';
+                  statusColor = 'text-purple-500 bg-purple-50';
                 } else if (diffDays <= 7) {
-                  status = `in ${diffDays} day${diffDays === 1 ? '' : 's'}`;
-                  statusColor = 'text-pink-500 bg-pink-50';
+                  status = 'This week';
+                  statusColor = 'text-green-500 bg-green-50';
                 } else if (diffDays <= 14) {
-                  status = 'Next 2 weeks';
+                  status = 'Next week';
+                  statusColor = 'text-green-500 bg-green-50';
+                } else if (diffDays <= 30) {
+                  status = 'Next month';
                   statusColor = 'text-green-500 bg-green-50';
                 } else {
-                  status = `in ${Math.floor(diffDays/30) || 1} month${Math.floor(diffDays/30) > 1 ? 's' : ''}`;
+                  status = `in ${Math.floor(diffDays/30)} months`;
                   statusColor = 'text-blue-500 bg-blue-50';
                 }
                 
+                // Add to premium tiers data
                 allPremiumTiers.push({
                   id: tier.id,
-                  eventId: event.id,
-                  eventName: event.name,
-                  tierName: tier.tier_title || tier.name || 'VIP Ticket',
+                  tierId: tier.id,  // Store for ticket modal
+                  eventId: event.id,  // Store for ticket modal
+                  tierName: tier.tier_title || tier.name || 'Premium Ticket',
                   tierDescription: tier.tier_description || tier.description || '',
-                  image: coverImage,
-                  price: `₦ ${parseFloat(price).toLocaleString()}`,
-                  totalQuantity,
-                  soldQuantity,
-                  availableQuantity,
+                  eventName: event.name,
+                  price: `₦ ${price.toLocaleString()}`,
+                  rawPrice: price,
+                  totalQuantity: totalQuantity,
+                  soldQuantity: soldQuantity,
+                  availableQuantity: availableQuantity,
                   eventDate: formattedDate,
                   status,
                   statusColor,
@@ -667,6 +683,27 @@ function DashboardContent() {
       </div>
     );
   }
+
+  // Handle opening the ticket modal for a specific premium tier
+  const handleOpenTicketModal = (tier) => {
+    // Find the related event based on the tier's eventId
+    const event = events?.find(e => e.id === tier.eventId);
+    if (event) {
+      setSelectedEvent({
+        ...event,
+        title: event.name,
+        // Make sure the ticket_tiers include this specific premium tier at the top of the list
+        ticket_tiers: event.ticket_tiers ? 
+          [
+            // Put the selected premium tier first
+            ...event.ticket_tiers.filter(t => t.id === tier.tierId),
+            // Then add all other tiers
+            ...event.ticket_tiers.filter(t => t.id !== tier.tierId)
+          ] : []
+      });
+      setIsTicketModalOpen(true);
+    }
+  };
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -1001,6 +1038,7 @@ function DashboardContent() {
                         <th className="pb-4">Price</th>
                         <th className="pb-4">Availability</th>
                         <th className="pb-4">Revenue</th>
+                        <th className="pb-4">Action</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1051,11 +1089,27 @@ function DashboardContent() {
                                 <span className="text-sm">
                                   {tier.availableQuantity === 0 
                                     ? <span className="text-red-500 font-medium">Sold Out</span> 
-                                    : `${tier.availableQuantity}/${tier.totalQuantity}`}
+                                    : <span>
+                                        <span className="font-medium">{tier.availableQuantity}</span> of {tier.totalQuantity} tickets remaining
+                                      </span>
+                                  }
                                 </span>
                               </div>
                             </td>
                             <td className="py-4 text-slate-800 font-medium">{tier.revenue}</td>
+                            <td className="py-4">
+                              {tier.availableQuantity > 0 && new Date(tier.eventDate) > new Date() && (
+                                <button
+                                  onClick={() => handleOpenTicketModal(tier)}
+                                  className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-400 text-white rounded-lg text-xs hover:from-amber-600 hover:to-orange-500 transition-all duration-300 shadow-sm flex items-center gap-1"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+                                  </svg>
+                                  Buy Ticket
+                                </button>
+                              )}
+                            </td>
                           </tr>
                         ))
                       ) : (
@@ -1190,6 +1244,13 @@ function DashboardContent() {
         </div>
       </div>
     </div>
+    
+    {/* Ticket Modal for Premium Tickets */}
+    <TicketModal
+      event={selectedEvent}
+      isOpen={isTicketModalOpen}
+      onClose={() => setIsTicketModalOpen(false)}
+    />
   );
 }
 

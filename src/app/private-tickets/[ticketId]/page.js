@@ -294,18 +294,6 @@ export default function PrivateTicketPage() {
                         <span className="text-slate-600">Quantity:</span>
                         <span className="font-medium text-slate-800">{ticket.quantity} ticket(s)</span>
                       </div>
-                      {ticket.is_paid && (
-                        <div className="flex justify-between">
-                          <span className="text-slate-600">Price:</span>
-                          <span className="font-medium text-slate-800">₦{ticket.price_paid.toFixed(2)} per ticket</span>
-                        </div>
-                      )}
-                      {ticket.is_paid && (
-                        <div className="flex justify-between">
-                          <span className="text-slate-600">Total Amount:</span>
-                          <span className="font-medium text-slate-800">₦{ticket.total_price.toFixed(2)}</span>
-                        </div>
-                      )}
                       <div className="flex justify-between">
                         <span className="text-slate-600">Purchase Date:</span>
                         <span className="font-medium text-slate-800">{formatDate(ticket.purchase_date)}</span>

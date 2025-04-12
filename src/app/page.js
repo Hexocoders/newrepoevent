@@ -150,7 +150,8 @@ export default function Home() {
           multiple_buys_min_tickets: event.multiple_buys_min_tickets || 2,
           // Display indicators
           hasDiscounts: hasDiscounts,
-          discountAmount: discountAmount
+          discountAmount: discountAmount,
+          isSoldOut: isSoldOut
         };
       });
 
@@ -420,11 +421,11 @@ export default function Home() {
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {featuredEvents.map(event => (
-              <FeaturedEventCard 
+              <EventCard 
                 key={event.id} 
-                {...event} 
+                event={event} 
                 onClick={() => handleEventClick(event)}
-                onGetTickets={(e) => handleGetTickets(event, e)}
+                onGetTickets={() => handleGetTickets(event)}
               />
             ))}
           </div>
@@ -472,11 +473,11 @@ export default function Home() {
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {trendingEvents.map(event => (
-              <TrendingEventCard 
+              <EventCard 
                 key={event.id} 
-                {...event} 
+                event={event} 
                 onClick={() => handleEventClick(event)}
-                onGetTickets={(e) => handleGetTickets(event, e)}
+                onGetTickets={() => handleGetTickets(event)}
               />
             ))}
           </div>
@@ -490,28 +491,20 @@ export default function Home() {
               <p className="text-gray-600">Plan ahead for these amazing experiences</p>
             </div>
             <div className="mt-4 md:mt-0 flex space-x-2">
-              <button className="px-4 py-2 border border-gray-300 rounded-full text-sm text-black hover:bg-gray-50 transition-colors">
-                All
-              </button>
-              <button className="px-4 py-2 border border-gray-300 rounded-full text-sm text-black hover:bg-gray-50 transition-colors">
-                Today
-              </button>
-              <button className="px-4 py-2 border border-gray-300 rounded-full text-sm text-black hover:bg-gray-50 transition-colors">
-                This Week
-              </button>
-              <button className="px-4 py-2 border border-gray-300 rounded-full text-sm text-black hover:bg-gray-50 transition-colors">
-                This Month
-              </button>
+              <FilterButton active={true} onClick={() => {}}>All Events</FilterButton>
+              <FilterButton active={false} onClick={() => {}}>Today</FilterButton>
+              <FilterButton active={false} onClick={() => {}}>This Week</FilterButton>
+              <FilterButton active={false} onClick={() => {}}>This Month</FilterButton>
             </div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {upcomingEvents.slice(0, 9).map(event => (
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {upcomingEvents.slice(0, 8).map(event => (
               <EventCard 
                 key={event.id} 
-                {...event} 
+                event={event} 
                 onClick={() => handleEventClick(event)}
-                onGetTickets={(e) => handleGetTickets(event, e)}
+                onGetTickets={() => handleGetTickets(event)}
               />
             ))}
           </div>
@@ -875,82 +868,102 @@ function TrendingEventCard({ id, title, image, date, location, price, category =
 }
 
 // Event Card Component
-function EventCard({ id, title, image, date, location, price, ticketCount, hasDiscounts, discountAmount, onClick, onGetTickets }) {
-  const isSoldOut = ticketCount === 'No available ticket for this event';
+function EventCard({ event, onClick, onGetTickets }) {
+  // Check if discounts are available
+  const hasDiscounts = event.has_early_bird || event.has_multiple_buys;
+  const discountAmount = Math.max(event.early_bird_discount || 0, event.multiple_buys_discount || 0);
   
   return (
-    <div onClick={onClick} className="group bg-white border border-gray-100 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer">
-      <div className="relative h-48">
-        <Image
-          src={image}
-          alt={title}
+    <div className="relative flex flex-col overflow-hidden bg-white rounded-2xl shadow-sm hover:shadow-lg transition-shadow border border-slate-200">
+      {/* Event Image */}
+      <div 
+        className="relative aspect-[16/9] cursor-pointer"
+        onClick={onClick}
+      >
+        <Image 
+          src={event.image} 
+          alt={event.title}
           fill
+          sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
           className="object-cover"
         />
-        <div className="absolute inset-0 bg-black/40"></div>
+        {/* Category Tag */}
+        <div className="absolute top-3 left-3">
+          <span className="inline-block px-3 py-1 text-xs font-semibold bg-indigo-600 text-white rounded-full shadow-sm">
+            {event.category || 'Event'}
+          </span>
+        </div>
         
         {/* Discount Badge - Show only if there are discounts */}
         {hasDiscounts && (
           <div className="absolute top-3 right-3">
-            <span className="inline-block px-3 py-1 text-xs font-semibold bg-orange-500 text-white rounded-full shadow-sm">
+            <span className="inline-block px-3 py-1 text-xs font-semibold bg-orange-500 text-white rounded-full shadow-sm animate-pulse">
               Up to {discountAmount}% off
             </span>
           </div>
         )}
       </div>
-      <div className="p-4">
-        <h3 className="text-base font-semibold text-gray-900 mb-2 line-clamp-2">{title}</h3>
-        <div className="space-y-1.5 mb-3">
-          <div className="flex items-center text-gray-600 text-sm">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      
+      {/* Event Content */}
+      <div className="p-4 flex-grow cursor-pointer" onClick={onClick}>
+        <h3 className="text-lg font-semibold text-slate-900 mb-1 line-clamp-1">{event.title}</h3>
+        
+        <div className="mb-4">
+          <p className="text-sm text-slate-600 line-clamp-2">{event.description}</p>
+        </div>
+        
+        <div className="space-y-2 mb-4">
+          <div className="flex items-start space-x-2">
+            <svg className="w-4 h-4 text-slate-500 mt-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
-            {date}
+            <span className="text-sm text-slate-600">{event.date}</span>
           </div>
-          <div className="flex items-center text-gray-600 text-sm">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            {location}
-          </div>
+          
+          {event.time && (
+            <div className="flex items-start space-x-2">
+              <svg className="w-4 h-4 text-slate-500 mt-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="text-sm text-slate-600">{event.time}</span>
+            </div>
+          )}
+          
+          {event.location && (
+            <div className="flex items-start space-x-2">
+              <svg className="w-4 h-4 text-slate-500 mt-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span className="text-sm text-slate-600">{event.location}</span>
+            </div>
+          )}
         </div>
-        <div className="flex justify-between items-center pt-3 border-t border-gray-100">
-          <div>
-            <span className="text-xs text-gray-500">Starting from</span>
-            <p className="text-gray-900 font-medium">{price}</p>
-            {price !== 'Free' && ticketCount !== 'No available ticket for this event' && (
-              <span className="text-xs text-gray-500">{ticketCount} available</span>
-            )}
-            {price === 'Free' && ticketCount !== 'No available ticket for this event' && (
-              <span className="text-xs text-gray-500">{ticketCount} free tickets available</span>
-            )}
-          </div>
+      </div>
+      
+      {/* Event Footer */}
+      <div className="flex items-center justify-between border-t border-slate-200 p-4">
+        <div className="flex flex-col">
+          <span className={`text-sm ${event.isSoldOut ? 'text-red-600 font-medium' : 'text-slate-600'}`}>
+            {event.isSoldOut ? 'Sold Out' : `${event.ticketCount} tickets`}
+          </span>
+          <span className="text-lg font-semibold text-indigo-600">
+            {event.price}
+          </span>
+        </div>
+        
+        {!event.isSoldOut && (
           <button 
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              // Make sure we pass the event object
-              onGetTickets(e);
+              onGetTickets(event);
             }}
-            disabled={isSoldOut}
-            className={`w-8 h-8 flex items-center justify-center transition-colors ${
-              isSoldOut 
-                ? 'bg-gray-100 cursor-not-allowed' 
-                : 'bg-black text-white hover:bg-gray-800'
-            }`}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-colors"
           >
-            {isSoldOut ? (
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            )}
+            Get Tickets
           </button>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -978,5 +991,19 @@ function CategoryCard({ icon, title, count, bgColor = "bg-gray-50", accentColor 
         </div>
       </div>
     </Link>
+  );
+}
+
+// Filter Button Component
+function FilterButton({ children, active, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+        active ? 'bg-gradient-to-r from-amber-500 to-orange-400 text-white' : 'text-gray-500 hover:bg-gray-100'
+      }`}
+    >
+      {children}
+    </button>
   );
 }
